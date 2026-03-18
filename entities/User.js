@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BILLING_PLAN_IDS } from '@/constants/billing';
+import { migrateLegacySubscriptionFields } from '@/services/billing/entitlements';
 import { users as originalUsers } from '../data/users.ts';
 
 const STORAGE_KEY = 'users_data';
@@ -16,7 +18,10 @@ class User {
     try {
       const storedData = await AsyncStorage.getItem(STORAGE_KEY);
       if (storedData) {
-        users = JSON.parse(storedData);
+        users = JSON.parse(storedData).map(user => migrateLegacySubscriptionFields({
+          ...user,
+          subscription_plan: user.subscription_plan || BILLING_PLAN_IDS.free,
+        }));
         console.log('Loaded users from storage:', users.length);
       } else {
         // First time - save original data to storage
@@ -26,7 +31,10 @@ class User {
     } catch (error) {
       console.error('Error loading users from storage:', error);
       // Fallback to original data
-      users = [...originalUsers];
+      users = [...originalUsers].map(user => migrateLegacySubscriptionFields({
+        ...user,
+        subscription_plan: user.subscription_plan || BILLING_PLAN_IDS.free,
+      }));
     }
   }
 
@@ -41,12 +49,14 @@ class User {
 
   async create(data) {
     console.log('Creating User:', data);
-    const newUser = {
+    const newUser = migrateLegacySubscriptionFields({
       id: Math.random().toString(36).substr(2, 9),
+      trial_start_date: data.trial_start_date || new Date().toISOString(),
+      subscription_plan: data.subscription_plan || BILLING_PLAN_IDS.free,
       ...data,
       created_date: new Date().toISOString(),
       updated_date: new Date().toISOString()
-    };
+    });
     
     // Add to users array
     users.push(newUser);
@@ -79,11 +89,12 @@ class User {
     console.log('Updating User:', id, data);
     const index = users.findIndex(user => user.id === id);
     if (index !== -1) {
-      users[index] = {
+      users[index] = migrateLegacySubscriptionFields({
         ...users[index],
         ...data,
+        subscription_plan: data.subscription_plan || users[index].subscription_plan || BILLING_PLAN_IDS.free,
         updated_date: new Date().toISOString()
-      };
+      });
       
       // Save to persistent storage
       await this.saveToStorage();
@@ -110,14 +121,19 @@ class User {
 
   async me() {
     console.log('Getting current user');
-    return {
-      id: '68602ea219f95d6a816e14a4',
-      email: 'luriadani@gmail.com',
-      name: 'Luri Adani',
-      subscription_level: 'premium',
-      created_date: '2024-01-01T00:00:00Z',
-      updated_date: '2024-01-01T00:00:00Z'
-    };
+    const preferredUser =
+      users.find(user => user.email === 'luriadani@gmail.com') ||
+      users.find(user => user.role === 'admin') ||
+      users[0];
+
+    if (!preferredUser) {
+      return null;
+    }
+
+    return migrateLegacySubscriptionFields({
+      ...preferredUser,
+      subscription_plan: preferredUser.subscription_plan || BILLING_PLAN_IDS.free,
+    });
   }
 
   async updateMyUserData(data) {

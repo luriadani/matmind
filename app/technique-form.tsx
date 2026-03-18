@@ -5,6 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from '../components/Localization';
+import { useSubscriptionStatus } from '../components/SubscriptionGuard';
+import { canCreateTechnique } from '../services/billing/entitlements';
 import { extractVideoTitle, generateTechniqueTitle } from '../utils/videoTitleExtractor';
 
 interface TrainingData {
@@ -21,6 +23,7 @@ interface TrainingData {
 
 export default function TechniqueForm() {
   const { t, settings, user, getTextDirection } = useAppContext();
+  const { subscriptionStatus } = useSubscriptionStatus();
   const params = useLocalSearchParams();
   const isEditing = !!params.techniqueId;
   
@@ -278,6 +281,13 @@ export default function TechniqueForm() {
           { text: 'OK', onPress: () => router.replace('/(tabs)') }
         ]);
       } else {
+        const ownTechniques = await Technique.filter({ created_by: user.email });
+        if (!canCreateTechnique(subscriptionStatus, ownTechniques.length)) {
+          Alert.alert('Upgrade required', 'You reached your free technique limit. Upgrade to continue.');
+          router.push('/pricing');
+          return;
+        }
+
         // Create new technique
         const createData = {
           ...formData,

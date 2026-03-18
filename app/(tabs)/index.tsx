@@ -14,7 +14,7 @@ import { useSubscriptionStatus } from '../../components/SubscriptionGuard';
 
 export default function Dashboard() {
   const { t, user: contextUser } = useAppContext();
-  const { user, subscriptionStatus, isLoading: isAppLoading } = useSubscriptionStatus();
+  const { user, subscriptionStatus, isLoading: isAppLoading, freeTechniqueLimit } = useSubscriptionStatus();
   
   // Use context user if available, otherwise use subscription user
   const effectiveUser = contextUser || user;
@@ -193,10 +193,12 @@ export default function Dashboard() {
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         {/* Technique limit warning for free users */}
-        {subscriptionStatus?.level === 'free' && techniques.length >= 7 && (
+        {subscriptionStatus?.level === 'free' && techniques.length >= freeTechniqueLimit && (
           <View style={styles.warningContainer}>
             <Text style={styles.warningTitle}>{t('subscription.technique_limit_reached')}</Text>
-            <Text style={styles.warningText}>{t('subscription.techniques_will_be_deleted')}</Text>
+            <Text style={styles.warningText}>
+              {t('subscription.techniques_will_be_deleted')} ({techniques.length}/{freeTechniqueLimit})
+            </Text>
             <TouchableOpacity
               style={styles.upgradeButton}
               onPress={() => router.push('/pricing')}
@@ -224,7 +226,7 @@ export default function Dashboard() {
 
         <View style={styles.techniquesSection}>
           <Text style={styles.sectionTitle}>Your Library</Text>
-          <Text style={styles.sectionSubtitle}>Here are all the techniques you've saved. Search, filter, and plan your next session.</Text>
+          <Text style={styles.sectionSubtitle}>Here are all the techniques you&apos;ve saved. Search, filter, and plan your next session.</Text>
           
           <Filters filters={filters} onFilterChange={setFilters} />
           

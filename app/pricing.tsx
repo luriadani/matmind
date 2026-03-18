@@ -1,77 +1,179 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { BILLING_PLANS, BILLING_PLAN_IDS, BillingPlanId } from '@/constants/billing';
+import { trackCouponAttempt, validateCoupon } from '@/services/billing/coupons';
+import { derivePaidPlanFromCustomerInfo, findStoreProductForPlan, getCurrentOffering, initializeRevenueCat, purchasePlanProduct, restorePurchases, setRevenueCatUser } from '@/services/billing/revenuecat';
 import { useAppContext } from '../components/Localization';
-
-const plans = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: '$0',
-    period: 'forever',
-    features: [
-      'Up to 7 techniques',
-      'Basic training schedule',
-      'Hebrew & English support',
-      'Basic notifications'
-    ],
-    limitations: [
-      'Techniques will be deleted after limit',
-      'No advanced features',
-      'No gym sharing'
-    ],
-    color: '#6B7280'
-  },
-  {
-    id: 'monthly',
-    name: 'Monthly',
-    price: '$9.99',
-    period: 'per month',
-    features: [
-      'Unlimited techniques',
-      'Advanced training schedule',
-      'Custom categories',
-      'Gym sharing',
-      'Advanced notifications',
-      'Priority support'
-    ],
-    popular: true,
-    color: '#2563EB'
-  },
-  {
-    id: 'lifetime',
-    name: 'Lifetime',
-    price: '$199',
-    period: 'one-time',
-    features: [
-      'Everything in Monthly',
-      'Lifetime access',
-      'Future updates included',
-      'Premium support',
-      'Early access to features'
-    ],
-    color: '#DC2626'
-  }
-];
+import { deriveEntitlementState } from '@/services/billing/entitlements';
 
 export default function Pricing() {
-  const { t } = useAppContext();
-  const [selectedPlan, setSelectedPlan] = useState('monthly');
+  const { t, user, updateUser } = useAppContext();
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlanId>(BILLING_PLAN_IDS.yearly);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponMessage, setCouponMessage] = useState('');
+  const [isCouponValid, setIsCouponValid] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const handleSelectPlan = (planId) => {
+  const selectedPlanConfig = useMemo(
+    () => BILLING_PLANS.find((plan) => plan.id === selectedPlan),
+    [selectedPlan]
+  );
+
+  useEffect(() => {
+    const initPurchases = async () => {
+      const didInit = await initializeRevenueCat(user?.id || user?.email);
+      setIsInitialized(didInit);
+      if (didInit && user?.id) {
+        await setRevenueCatUser(user.id);
+      }
+    };
+    initPurchases();
+  }, [user?.id, user?.email]);
+
+  const handleSelectPlan = (planId: BillingPlanId) => {
     setSelectedPlan(planId);
+    setCouponMessage('');
+    setIsCouponValid(false);
   };
 
-  const handleSubscribe = () => {
-    // In a real app, this would handle payment processing
-    console.log('Subscribing to plan:', selectedPlan);
-    router.back();
+  const handleApplyCoupon = async () => {
+    if (!selectedPlanConfig || selectedPlan === BILLING_PLAN_IDS.free) {
+      setCouponMessage('Coupon is only available for paid plans.');
+      setIsCouponValid(false);
+      return;
+    }
+
+    const result = validateCoupon(couponCode, selectedPlan, selectedPlanConfig.basePrice);
+    setIsCouponValid(result.isValid);
+    setCouponMessage(
+      result.isValid
+        ? `Coupon applied: ${result.coupon.discountPercent}% off (${selectedPlanConfig.displayPrice} -> $${result.discountedPrice})`
+        : result.reason
+    );
+
+    await trackCouponAttempt({
+      code: couponCode.trim().toUpperCase(),
+      planId: selectedPlan,
+      userId: user?.id,
+      email: user?.email,
+      success: result.isValid,
+      reason: result.isValid ? undefined : result.reason,
+      at: new Date().toISOString(),
+    });
+  };
+
+  const applyPaidEntitlementLocally = (planId: BillingPlanId) => {
+    const now = new Date();
+    const updates =
+      planId === BILLING_PLAN_IDS.lifetime
+        ? {
+            subscription_status: 'lifetime',
+            subscription_plan: BILLING_PLAN_IDS.lifetime,
+            subscription_expiry_date: null,
+            payment_method: 'store',
+          }
+        : {
+            subscription_status: 'active',
+            subscription_plan: BILLING_PLAN_IDS.yearly,
+            subscription_expiry_date: new Date(
+              now.getFullYear() + 1,
+              now.getMonth(),
+              now.getDate()
+            ).toISOString(),
+            payment_method: 'store',
+          };
+
+    updateUser({
+      ...updates,
+      coupon_code: isCouponValid ? couponCode.trim().toUpperCase() : null,
+      updated_date: now.toISOString(),
+    });
+  };
+
+  const handleSubscribe = async () => {
+    if (!selectedPlanConfig) return;
+    setIsProcessing(true);
+    try {
+      if (selectedPlan === BILLING_PLAN_IDS.free) {
+        updateUser({
+          subscription_status: 'expired',
+          subscription_plan: BILLING_PLAN_IDS.free,
+          subscription_expiry_date: null,
+          payment_method: null,
+          updated_date: new Date().toISOString(),
+        });
+        Alert.alert('Plan updated', 'You are now on the free plan.');
+        router.back();
+        return;
+      }
+
+      const offering = await getCurrentOffering();
+      const product = findStoreProductForPlan(offering, selectedPlan);
+      if (!product) {
+        Alert.alert(
+          'Billing unavailable',
+          'Plan product is not configured in RevenueCat yet. Please verify product IDs and offering setup.'
+        );
+        return;
+      }
+
+      const customerInfo = await purchasePlanProduct(product);
+      if (!customerInfo) {
+        Alert.alert('Purchase failed', 'Could not complete purchase. Please try again.');
+        return;
+      }
+
+      const paidPlan = derivePaidPlanFromCustomerInfo(customerInfo);
+      if (!paidPlan) {
+        Alert.alert('Purchase pending', 'Purchase completed, waiting for entitlement activation.');
+        return;
+      }
+
+      applyPaidEntitlementLocally(paidPlan);
+      Alert.alert('Success', `Subscription activated: ${paidPlan}.`);
+      router.back();
+    } catch (error) {
+      console.error('Subscribe failed:', error);
+      Alert.alert('Error', 'Failed to process the purchase.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setIsProcessing(true);
+    try {
+      const info = await restorePurchases();
+      if (!info) {
+        Alert.alert('Restore unavailable', 'Could not restore purchases right now.');
+        return;
+      }
+
+      const plan = derivePaidPlanFromCustomerInfo(info);
+      if (!plan) {
+        Alert.alert('No purchases found', 'No active purchases were found to restore.');
+        return;
+      }
+
+      applyPaidEntitlementLocally(plan);
+      Alert.alert('Restored', `Restored ${plan} entitlement.`);
+    } catch (error) {
+      console.error('Restore failed:', error);
+      Alert.alert('Error', 'Failed to restore purchases.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleClose = () => {
     router.back();
   };
+
+  const entitlement = deriveEntitlementState(user);
+  const selectedPlanPrice = selectedPlanConfig?.displayPrice || '$0';
 
   return (
     <View style={styles.container}>
@@ -85,7 +187,7 @@ export default function Pricing() {
 
       <ScrollView style={styles.content}>
         <View style={styles.plansContainer}>
-          {plans.map(plan => (
+          {BILLING_PLANS.map(plan => (
             <View 
               key={plan.id} 
               style={[
@@ -103,7 +205,7 @@ export default function Pricing() {
               <View style={styles.planHeader}>
                 <Text style={styles.planName}>{plan.name}</Text>
                 <View style={styles.planPrice}>
-                  <Text style={styles.price}>{plan.price}</Text>
+                  <Text style={styles.price}>{plan.displayPrice}</Text>
                   <Text style={styles.period}>{plan.period}</Text>
                 </View>
               </View>
@@ -147,14 +249,57 @@ export default function Pricing() {
           ))}
         </View>
 
+        <View style={styles.couponContainer}>
+          <Text style={styles.couponTitle}>Coupon</Text>
+          <View style={styles.couponInputRow}>
+            <TextInput
+              style={styles.couponInput}
+              placeholder="Enter coupon code"
+              placeholderTextColor="#9CA3AF"
+              value={couponCode}
+              autoCapitalize="characters"
+              onChangeText={setCouponCode}
+            />
+            <TouchableOpacity style={styles.couponButton} onPress={handleApplyCoupon}>
+              <Text style={styles.couponButtonText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+          {!!couponMessage && (
+            <Text style={[styles.couponMessage, isCouponValid ? styles.couponValid : styles.couponInvalid]}>
+              {couponMessage}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusText}>
+            Current entitlement: {entitlement?.tier || 'unknown'}
+          </Text>
+          <Text style={styles.statusText}>Selected plan: {selectedPlan} ({selectedPlanPrice})</Text>
+          {!isInitialized && (
+            <Text style={styles.statusWarning}>
+              RevenueCat is not initialized (likely missing keys or running in Expo Go/web).
+            </Text>
+          )}
+        </View>
+
         <View style={styles.footer}>
           <TouchableOpacity 
-            style={styles.subscribeButton}
+            style={[styles.subscribeButton, isProcessing && styles.disabledButton]}
             onPress={handleSubscribe}
+            disabled={isProcessing}
           >
             <Text style={styles.subscribeButtonText}>
-              {t('pricing.subscribe_now')}
+              {isProcessing ? 'Processing...' : t('pricing.subscribe_now')}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.restoreButton, isProcessing && styles.disabledButton]}
+            onPress={handleRestore}
+            disabled={isProcessing}
+          >
+            <Text style={styles.restoreButtonText}>Restore purchases</Text>
           </TouchableOpacity>
           
           <Text style={styles.termsText}>
@@ -315,5 +460,84 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 12,
     textAlign: 'center',
+  },
+  couponContainer: {
+    marginTop: 20,
+    padding: 14,
+    backgroundColor: '#1F2937',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  couponTitle: {
+    color: 'white',
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  couponInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  couponInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: 'white',
+    backgroundColor: '#111827',
+  },
+  couponButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 6,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  couponButtonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  couponMessage: {
+    marginTop: 10,
+    fontSize: 13,
+  },
+  couponValid: {
+    color: '#10B981',
+  },
+  couponInvalid: {
+    color: '#F87171',
+  },
+  statusContainer: {
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  statusText: {
+    color: '#D1D5DB',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  statusWarning: {
+    color: '#F59E0B',
+    fontSize: 12,
+  },
+  restoreButton: {
+    marginTop: 10,
+    borderColor: '#6B7280',
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  restoreButtonText: {
+    color: '#D1D5DB',
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 }); 

@@ -1,26 +1,29 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAppContext } from './Localization';
+import { BILLING_CONFIG, BillingTier } from '@/constants/billing';
+import { deriveEntitlementState, hasTierAccess } from '@/services/billing/entitlements';
 
 interface SubscriptionGuardProps {
   children: React.ReactNode;
   requiredLevel?: 'free' | 'premium' | 'admin';
 }
 
+const levelToTier: Record<'free' | 'premium' | 'admin', BillingTier> = {
+  free: 'free_limited',
+  premium: 'paid_yearly',
+  admin: 'admin',
+};
+
 export const useSubscriptionStatus = () => {
   const { user, isLoading } = useAppContext();
-  
-  // Disable all limitations - always return admin level
-  const subscriptionStatus = user ? {
-    level: 'admin', // Force admin level to disable all limitations
-    isActive: true,
-    expiresAt: null
-  } : null;
+  const subscriptionStatus = deriveEntitlementState(user);
 
   return {
     user,
     subscriptionStatus,
-    isLoading
+    isLoading,
+    freeTechniqueLimit: BILLING_CONFIG.freeTechniqueLimit,
   };
 };
 
@@ -36,23 +39,10 @@ export default function SubscriptionGuard({ children, requiredLevel = 'free' }: 
     );
   }
 
-  // Check subscription level
-  const userLevel = (user.subscription_level || 'free') as 'free' | 'premium' | 'admin';
-  const userRole = user.role || 'user';
-
-  // Admin role has access to everything
-  if (userRole === 'admin') {
-    return <>{children}</>;
-  }
-
-  // Check subscription level
-  const levels = {
-    free: 0,
-    premium: 1,
-    admin: 2
-  };
-
-  const hasAccess = levels[userLevel] >= levels[requiredLevel];
+  const currentEntitlement = deriveEntitlementState(user);
+  const hasAccess = currentEntitlement
+    ? hasTierAccess(currentEntitlement.tier, levelToTier[requiredLevel])
+    : false;
 
   if (!hasAccess) {
     return (

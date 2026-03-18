@@ -1,14 +1,29 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Technique } from '@/entities/all';
+import { canCreateTechnique } from '@/services/billing/entitlements';
+import { useSubscriptionStatus } from '@/components/SubscriptionGuard';
 
 export default function AddTab() {
   const [error, setError] = useState(null);
+  const { user, subscriptionStatus } = useSubscriptionStatus();
 
   useEffect(() => {
     try {
       // Add a small delay to ensure proper navigation
-      const timeout = setTimeout(() => {
+      const timeout = setTimeout(async () => {
+        if (!user || !subscriptionStatus) {
+          router.replace('/pricing');
+          return;
+        }
+
+        const ownTechniques = await Technique.filter({ created_by: user.email });
+        if (!canCreateTechnique(subscriptionStatus, ownTechniques.length)) {
+          router.replace('/pricing');
+          return;
+        }
+
         router.replace('/technique-form');
       }, 100);
 
@@ -17,7 +32,7 @@ export default function AddTab() {
       console.error('Navigation error:', err);
       setError(err.message);
     }
-  }, []);
+  }, [subscriptionStatus, user]);
 
   if (error) {
     return (
