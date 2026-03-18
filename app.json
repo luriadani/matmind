@@ -26,8 +26,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.matmind.app",
+      "buildNumber": "4",
       "associatedDomains": [
-        "applinks:matmind.app",
         "applinks:matmind.app"
       ],
       "infoPlist": {
@@ -37,52 +37,12 @@
             "CFBundleURLSchemes": [
               "matmind"
             ]
-          },
-          {
-            "CFBundleURLName": "matmind",
-            "CFBundleURLSchemes": [
-              "matmind"
-            ]
           }
         ],
         "NSUserActivityTypes": [
-          "NSUserActivityTypeBrowsingWeb",
           "NSUserActivityTypeBrowsingWeb"
         ],
         "CFBundleDocumentTypes": [
-          {
-            "CFBundleTypeName": "Text",
-            "CFBundleTypeRole": "Editor",
-            "LSHandlerRank": "Owner",
-            "LSItemContentTypes": [
-              "public.text"
-            ]
-          },
-          {
-            "CFBundleTypeName": "Video",
-            "CFBundleTypeRole": "Viewer",
-            "LSHandlerRank": "Owner",
-            "LSItemContentTypes": [
-              "public.movie",
-              "public.video"
-            ]
-          },
-          {
-            "CFBundleTypeName": "Image",
-            "CFBundleTypeRole": "Viewer",
-            "LSHandlerRank": "Owner",
-            "LSItemContentTypes": [
-              "public.image"
-            ]
-          },
-          {
-            "CFBundleTypeName": "URL",
-            "CFBundleTypeRole": "Viewer",
-            "LSHandlerRank": "Owner",
-            "LSItemContentTypes": [
-              "public.url"
-            ]
-          },
           {
             "CFBundleTypeName": "Text",
             "CFBundleTypeRole": "Editor",

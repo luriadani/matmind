@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.2.0"
+    "version": ">= 5.2.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -16,7 +17,17 @@
         "resourceClass": "m-medium"
       }
     },
+    "testflight": {
+      "distribution": "store",
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    },
     "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
       "ios": {
         "resourceClass": "m-medium"
       }

@@ -90,3 +90,77 @@ Once you have a development build:
 ### Data not persisting?
 - The new AsyncStorage implementation should fix this
 - Data will now be saved permanently on the device 
+
+## Production Release Setup (Android + iOS)
+
+### Required accounts
+
+Before public distribution, complete both:
+
+1. Apple Developer Program enrollment
+2. Google Play Console registration
+
+Without these accounts, you can still make Android APK tester builds, but you cannot publish to App Store/Play Store.
+
+### Release version policy
+
+Keep versions aligned on every release:
+
+- `expo.version` in `app.json`: semantic version, e.g. `1.0.4`
+- `android.versionCode` in `app.json`: increment integer each release
+- `ios.buildNumber` in `app.json`: increment integer each iOS release
+
+Production builds in `eas.json` use `autoIncrement: true` to prevent duplicate build numbers.
+
+### Build commands
+
+#### Internal tester builds
+
+Android APK (direct install):
+
+```bash
+eas build --platform android --profile production-apk
+```
+
+iOS TestFlight build:
+
+```bash
+eas build --platform ios --profile testflight
+```
+
+#### Store-ready production builds
+
+Android AAB + iOS production:
+
+```bash
+eas build --platform all --profile production
+```
+
+### Submission commands
+
+After store metadata is prepared and accounts are configured:
+
+```bash
+eas submit --platform android --profile production
+eas submit --platform ios --profile production
+```
+
+### Device smoke test checklist (every release)
+
+Run on at least one physical Android and one physical iPhone:
+
+1. App launch and first-run flow
+2. Navigation across all tabs/screens
+3. Notifications (permission, scheduling, delivery)
+4. Sharing and deep link flows
+5. Data persistence after restart
+6. Upgrade behavior from previous app version
+
+### Rollout recommendations
+
+- Google Play: publish to Internal -> Closed testing -> Production
+- iOS: TestFlight external testing before App Store release
+- Start with staged rollout and monitor:
+  - crash-free sessions
+  - ANR rate (Android)
+  - severe user-reported regressions
