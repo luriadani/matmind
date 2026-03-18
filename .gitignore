@@ -32,8 +32,27 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+.env.*
 
 # typescript
 *.tsbuildinfo
 
 app-example
+
+# IDE/editor
+.idea/
+*.iml
+
+# logs
+*.log
+
+# React Native / Expo native build artifacts
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/captures/
+ios/build/
+ios/Pods/
+*.keystore
