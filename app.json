@@ -1,0 +1,187 @@
+{
+  "expo": {
+    "name": "matmind",
+    "slug": "matmind",
+    "version": "1.0.3",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "matmind",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.matmind.app",
+      "associatedDomains": [
+        "applinks:matmind.app",
+        "applinks:matmind.app"
+      ],
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "matmind",
+            "CFBundleURLSchemes": [
+              "matmind"
+            ]
+          },
+          {
+            "CFBundleURLName": "matmind",
+            "CFBundleURLSchemes": [
+              "matmind"
+            ]
+          }
+        ],
+        "NSUserActivityTypes": [
+          "NSUserActivityTypeBrowsingWeb",
+          "NSUserActivityTypeBrowsingWeb"
+        ],
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Text",
+            "CFBundleTypeRole": "Editor",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.text"
+            ]
+          },
+          {
+            "CFBundleTypeName": "Video",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.movie",
+              "public.video"
+            ]
+          },
+          {
+            "CFBundleTypeName": "Image",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.image"
+            ]
+          },
+          {
+            "CFBundleTypeName": "URL",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.url"
+            ]
+          },
+          {
+            "CFBundleTypeName": "Text",
+            "CFBundleTypeRole": "Editor",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.text"
+            ]
+          },
+          {
+            "CFBundleTypeName": "Video",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.movie",
+              "public.video"
+            ]
+          },
+          {
+            "CFBundleTypeName": "Image",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.image"
+            ]
+          },
+          {
+            "CFBundleTypeName": "URL",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Owner",
+            "LSItemContentTypes": [
+              "public.url"
+            ]
+          }
+        ],
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "UISupportsDocumentBrowser": true,
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.matmind.app",
+      "versionCode": 4,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": [
+            {
+              "scheme": "matmind"
+            }
+          ]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [
+            {
+              "mimeType": "text/plain"
+            }
+          ]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [
+            {
+              "mimeType": "text/*"
+            }
+          ]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [
+            {
+              "mimeType": "video/*"
+            }
+          ]
+        }
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "034b0f7a-07bb-4e60-83ea-9df910ae1bbf"
+      }
+    }
+  }
+}

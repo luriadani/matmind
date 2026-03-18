@@ -1,0 +1,50 @@
+export const gyms = [
+  {
+    "name": "Rehovot bjj",
+    "description": null,
+    "address": null,
+    "phone": null,
+    "email": null,
+    "subscription_plan": "basic",
+    "max_members": 50,
+    "active": null,
+    "id": "6861514b53f9f9296017ef3d",
+    "created_date": "2025-06-29T14:44:27.729000",
+    "updated_date": "2025-07-01T20:23:14.206000",
+    "created_by_id": "68602ea219f95d6a816e14a4",
+    "created_by": "luriadani@gmail.com",
+    "is_sample": null
+  },
+  {
+    "name": "Akban Bilu",
+    "description": null,
+    "address": null,
+    "phone": null,
+    "email": null,
+    "subscription_plan": "basic",
+    "max_members": 50,
+    "active": true,
+    "id": "68640a5e2287c99d03af6c72",
+    "created_date": "2025-07-01T16:18:38.493000",
+    "updated_date": "2025-07-03T17:21:22.668000",
+    "created_by_id": "68602ea219f95d6a816e14a4",
+    "created_by": "luriadani@gmail.com",
+    "is_sample": null
+  },
+  {
+    "name": "BJJ Sucks",
+    "description": null,
+    "address": "asdf",
+    "phone": null,
+    "email": null,
+    "subscription_plan": "basic",
+    "max_members": 60,
+    "active": true,
+    "id": "6864c8e734e7d2b4ced4ca3b",
+    "created_date": "2025-07-02T05:51:35.568000",
+    "updated_date": "2025-07-02T05:51:35.568000",
+    "created_by_id": "6860362bfb9d4b9263a3bbc1",
+    "created_by": "avgraph@gmail.com",
+    "is_sample": null
+  }
+]; 
