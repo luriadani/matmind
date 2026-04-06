@@ -1,8 +1,8 @@
 import { Technique, Training } from '@/entities/all';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Filters from '../../components/dashboard/Filters';
 import NextPractice from '../../components/dashboard/NextPractice';
 import TechniqueCard from '../../components/dashboard/TechniqueCard';
@@ -11,44 +11,75 @@ import { useAppContext } from '../../components/Localization';
 import NotificationManager from '../../components/NotificationManager';
 import { useNotificationScheduler } from '../../components/NotificationScheduler';
 import { useSubscriptionStatus } from '../../components/SubscriptionGuard';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { SectionHeader } from '../../components/ui/SectionHeader';
+import { Brand, Colors } from '../../constants/Colors';
+import { BorderRadius, Spacing } from '../../constants/Spacing';
+import { Typography } from '../../constants/Typography';
+import { useColorScheme } from '../../hooks/useColorScheme';
+
+/** Staggered fade+slide-up animation for each feed card */
+function AnimatedCard({ children, index }: { children: React.ReactNode; index: number }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    const delay = index * 55;
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 320,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        delay,
+        speed: 22,
+        bounciness: 4,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+}
 
 export default function Dashboard() {
   const { t, user: contextUser } = useAppContext();
   const { user, subscriptionStatus, isLoading: isAppLoading, freeTechniqueLimit } = useSubscriptionStatus();
-  
-  // Use context user if available, otherwise use subscription user
   const effectiveUser = contextUser || user;
   const { scheduleReminders } = useNotificationScheduler();
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
+
   const [techniques, setTechniques] = useState<any[]>([]);
   const [trainings, setTrainings] = useState<any[]>([]);
   const [filters, setFilters] = useState({ searchTerm: '', categories: ['All'] as string[] });
   const [isDataLoading, setIsDataLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [feedKey, setFeedKey] = useState(0); // re-triggers stagger on refresh
 
-  // Clean up techniques that have training_id but don't have "Try Next Class" category
   const cleanupTechniques = useCallback(async () => {
     try {
       const userTechniques = await Technique.filter({ created_by: effectiveUser.email });
-      let updatedCount = 0;
-      
       for (const technique of userTechniques) {
-        const categories = technique.category ? technique.category.split(',').map((cat: string) => cat.trim()) : [];
-        const hasTryNextClass = categories.includes('Try Next Class');
-        const hasTrainingId = technique.training_id;
-        
-        // If technique has training_id but doesn't have "Try Next Class" category, clear the training_id
-        if (hasTrainingId && !hasTryNextClass) {
+        const categories = technique.category
+          ? technique.category.split(',').map((cat: string) => cat.trim())
+          : [];
+        if (technique.training_id && !categories.includes('Try Next Class')) {
           await Technique.update(technique.id, {
             ...technique,
             training_id: null,
-            updated_date: new Date().toISOString()
+            updated_date: new Date().toISOString(),
           });
-          updatedCount++;
         }
-      }
-      
-      if (updatedCount > 0) {
-        console.log(`Cleaned up ${updatedCount} techniques`);
       }
     } catch (error) {
       console.error('Error cleaning up techniques:', error);
@@ -57,234 +88,233 @@ export default function Dashboard() {
 
   const loadData = useCallback(async () => {
     if (isAppLoading || !effectiveUser) return;
-
     setIsDataLoading(true);
     try {
-      const myTechniquesPromise = Technique.filter({ created_by: effectiveUser.email });
-      const trainingPromise = Training.filter({ created_by: effectiveUser.email });
-      const sharedTechniquesPromise = effectiveUser.gym_id ? Technique.filter({ shared_by_gym_id: effectiveUser.gym_id }) : Promise.resolve([]);
-
       const [myTechniques, sharedTechniques, trainingData] = await Promise.all([
-        myTechniquesPromise,
-        sharedTechniquesPromise,
-        trainingPromise
+        Technique.filter({ created_by: effectiveUser.email }),
+        effectiveUser.gym_id
+          ? Technique.filter({ shared_by_gym_id: effectiveUser.gym_id })
+          : Promise.resolve([]),
+        Training.filter({ created_by: effectiveUser.email }),
       ]);
 
-      const allTechniques = [...myTechniques, ...sharedTechniques];
-      const uniqueTechniques = Array.from(new Map(allTechniques.map((tech: any) => [tech.id, tech])).values());
-      uniqueTechniques.sort((a: any, b: any) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime());
+      const unique = Array.from(
+        new Map([...myTechniques, ...sharedTechniques].map((t: any) => [t.id, t])).values()
+      );
+      unique.sort(
+        (a: any, b: any) =>
+          new Date(b.created_date).getTime() - new Date(a.created_date).getTime()
+      );
 
-      setTechniques(uniqueTechniques);
+      setTechniques(unique);
       setTrainings(trainingData);
-      
-      // Clean up techniques that have training_id but don't have "Try Next Class" category
+      setFeedKey((k) => k + 1);
       await cleanupTechniques();
-      
-      // Schedule notifications for upcoming trainings
-      if (effectiveUser && effectiveUser.notifications_enabled === 'true') {
-        await scheduleReminders(uniqueTechniques, trainingData);
+
+      if (effectiveUser?.notifications_enabled === 'true') {
+        await scheduleReminders(unique, trainingData);
       }
     } catch (error) {
-      console.error("Failed to load data:", error);
+      console.error('Failed to load data:', error);
     } finally {
       setIsDataLoading(false);
     }
   }, [effectiveUser, isAppLoading]);
 
-  // Load data when component mounts
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Refresh data when screen comes into focus (e.g., after creating a technique)
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
-  );
+  useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const handleDeleteTechnique = async (id: string) => {
     try {
-      const techniqueToDelete = techniques.find((t: any) => t.id === id);
-      if (techniqueToDelete?.created_by !== effectiveUser.email) {
-        Alert.alert("Error", "You can only delete techniques you have created.");
-        return;
-      }
+      const target = techniques.find((t: any) => t.id === id);
+      if (target?.created_by !== effectiveUser.email) return;
       await Technique.delete(id);
-      setTechniques(prev => prev.filter((t: any) => t.id !== id));
+      setTechniques((prev) => prev.filter((t: any) => t.id !== id));
     } catch (err) {
-      console.error("Failed to delete technique", err);
+      console.error('Failed to delete technique', err);
     }
   };
 
-  const handleTechniqueUpdate = (updatedTechnique: any) => {
-    setTechniques((prev: any[]) => prev.map((t: any) => t.id === updatedTechnique.id ? updatedTechnique : t));
+  const handleTechniqueUpdate = (updated: any) => {
+    setTechniques((prev: any[]) =>
+      prev.map((t: any) => (t.id === updated.id ? updated : t))
+    );
   };
 
   const filteredTechniques = useMemo(() => {
-    let resultingTechniques = [...techniques];
+    let result = [...techniques];
 
-    // Filter by scheduling if the setting is enabled
-    if (effectiveUser?.show_only_next_training_techniques === 'true' || effectiveUser?.show_only_next_training_techniques === true) {
-      const nextTraining = trainings.find(training => {
-        const now = new Date();
-        const currentDay = now.getDay();
-        const currentTime = now.getHours() * 60 + now.getMinutes();
-        
-        const trainingDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].indexOf(training.dayOfWeek);
-        const trainingTime = training.time.split(':').map(Number).reduce((h: number, m: number) => h * 60 + m);
-        
-        return (trainingDay > currentDay) || (trainingDay === currentDay && trainingTime > currentTime);
+    if (
+      effectiveUser?.show_only_next_training_techniques === 'true' ||
+      effectiveUser?.show_only_next_training_techniques === true
+    ) {
+      const now = new Date();
+      const nextTraining = trainings.find((training) => {
+        const day = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].indexOf(training.dayOfWeek);
+        const [h, m] = training.time.split(':').map(Number);
+        const trainingMins = h * 60 + m;
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        return day > now.getDay() || (day === now.getDay() && trainingMins > nowMins);
       });
 
-      console.log('Next training found:', nextTraining);
-      console.log('User setting:', effectiveUser?.show_only_next_training_techniques);
-      console.log('Effective user:', effectiveUser);
-
       if (nextTraining) {
-        const beforeFilter = resultingTechniques.length;
-        resultingTechniques = resultingTechniques.filter(tech => {
-          // Show techniques that are specifically assigned to this training
-          if (tech.training_id === nextTraining.id) {
-            return true;
-          }
-          
-          // OR show techniques with "Try Next Class" category that have no specific training assignment
-          if (tech.category && tech.category.includes('Try Next Class') && !tech.training_id) {
-            return true;
-          }
-          
-          return false;
-        });
-        console.log(`Filtered techniques: ${beforeFilter} -> ${resultingTechniques.length}`);
+        result = result.filter(
+          (tech) =>
+            tech.training_id === nextTraining.id ||
+            (tech.category?.includes('Try Next Class') && !tech.training_id)
+        );
       }
     }
 
-    // Filter by categories
     if (filters.categories.length > 0 && !filters.categories.includes('All')) {
-      resultingTechniques = resultingTechniques.filter(tech => {
+      result = result.filter((tech) => {
         if (!tech.category) return false;
-        
-        // Parse the technique's categories (comma-separated string)
-        const techniqueCategories = tech.category.split(',').map((cat: string) => cat.trim());
-        
-        // Check if any of the technique's categories match the selected filter categories
-        return filters.categories.some(filterCategory => 
-          techniqueCategories.includes(filterCategory)
-        );
+        const techCats = tech.category.split(',').map((c: string) => c.trim());
+        return filters.categories.some((fc) => techCats.includes(fc));
       });
     }
 
-    // Filter by search term
     if (filters.searchTerm) {
-      const lowercasedSearch = filters.searchTerm.toLowerCase();
-      resultingTechniques = resultingTechniques.filter(tech =>
-        (tech.title && tech.title.toLowerCase().includes(lowercasedSearch)) ||
-        (tech.tags && tech.tags.toLowerCase().includes(lowercasedSearch))
+      const q = filters.searchTerm.toLowerCase();
+      result = result.filter(
+        (tech) =>
+          tech.title?.toLowerCase().includes(q) ||
+          tech.tags?.toLowerCase().includes(q)
       );
     }
 
-    return resultingTechniques;
+    return result;
   }, [techniques, filters, effectiveUser?.show_only_next_training_techniques, trainings]);
 
   const isLoading = isAppLoading || isDataLoading;
+  const atLimit = subscriptionStatus?.level === 'free' && techniques.length >= freeTechniqueLimit;
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* Technique limit warning for free users */}
-        {subscriptionStatus?.level === 'free' && techniques.length >= freeTechniqueLimit && (
-          <View style={styles.warningContainer}>
-            <Text style={styles.warningTitle}>{t('subscription.technique_limit_reached')}</Text>
-            <Text style={styles.warningText}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: palette.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── Upgrade warning ─────────────────────────────── */}
+      {atLimit && (
+        <View style={[styles.warningBanner, { backgroundColor: Brand.accentMuted, borderColor: Brand.accent }]}>
+          <View style={styles.warningText}>
+            <Text style={[styles.warningTitle, { color: Brand.accent }]}>
+              {t('subscription.technique_limit_reached')}
+            </Text>
+            <Text style={[styles.warningBody, { color: palette.textSecondary }]}>
               {t('subscription.techniques_will_be_deleted')} ({techniques.length}/{freeTechniqueLimit})
             </Text>
-            <TouchableOpacity
-              style={styles.upgradeButton}
-              onPress={() => router.push('/pricing')}
-            >
-              <Text style={styles.upgradeButtonText}>{t('subscription.upgrade_now')}</Text>
-            </TouchableOpacity>
           </View>
-        )}
-
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>Coming Up Next</Text>
-          </View>
-          <Text style={styles.subtitle}>Techniques to be reminded before next training</Text>
+          <Button
+            label={t('subscription.upgrade_now')}
+            variant="primary"
+            size="sm"
+            onPress={() => router.push('/pricing')}
+          />
         </View>
+      )}
 
-        <NotificationManager />
+      {/* ── Header ──────────────────────────────────────── */}
+      <ScreenHeader
+        title={t('dashboard.title') || 'Coming Up Next'}
+        subtitle={t('dashboard.subtitle') || 'Techniques to review before your next training'}
+      />
 
-        <NextPractice
-          techniques={techniques}
-          trainings={trainings}
-          onTechniqueDelete={handleDeleteTechnique}
-          onTechniqueUpdate={handleTechniqueUpdate}
+      <NotificationManager />
+
+      <NextPractice
+        techniques={techniques}
+        trainings={trainings}
+        onTechniqueDelete={handleDeleteTechnique}
+        onTechniqueUpdate={handleTechniqueUpdate}
+      />
+
+      {/* ── Library section ─────────────────────────────── */}
+      <View style={styles.librarySection}>
+        <SectionHeader
+          title={t('dashboard.library')}
+          style={styles.sectionHeader}
         />
 
-        <View style={styles.techniquesSection}>
-          <Text style={styles.sectionTitle}>Your Library</Text>
-          <Text style={styles.sectionSubtitle}>Here are all the techniques you&apos;ve saved. Search, filter, and plan your next session.</Text>
-          
-          <Filters filters={filters} onFilterChange={setFilters} />
-          
-          <View style={styles.viewModeContainer}>
-            <TouchableOpacity
-              style={[styles.viewModeButton, viewMode === 'list' && styles.viewModeButtonActive]}
-              onPress={() => setViewMode('list')}
-            >
-              <Ionicons name="list" size={16} color={viewMode === 'list' ? 'white' : '#6B7280'} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.viewModeButton, viewMode === 'grid' && styles.viewModeButtonActive]}
-              onPress={() => setViewMode('grid')}
-            >
-              <Ionicons name="grid" size={16} color={viewMode === 'grid' ? 'white' : '#6B7280'} />
-            </TouchableOpacity>
-          </View>
+        <Filters filters={filters} onFilterChange={setFilters} />
+
+        {/* View mode toggle */}
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[
+              styles.toggleBtn,
+              { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+              viewMode === 'list' && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+            ]}
+            onPress={() => setViewMode('list')}
+          >
+            <Ionicons name="list" size={15} color={viewMode === 'list' ? Brand.primary : palette.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.toggleBtn,
+              { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+              viewMode === 'grid' && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+            ]}
+            onPress={() => setViewMode('grid')}
+          >
+            <Ionicons name="grid" size={15} color={viewMode === 'grid' ? Brand.primary : palette.textSecondary} />
+          </TouchableOpacity>
         </View>
-
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading...</Text>
-          </View>
-        ) : filteredTechniques.length > 0 ? (
-          viewMode === 'list' ? (
-            <View style={styles.listContainer}>
-              {filteredTechniques.map(tech => (
-                <TechniqueCard
-                  key={tech.id}
-                  technique={tech}
-                  trainings={trainings}
-                  onDelete={handleDeleteTechnique}
-                  onUpdate={handleTechniqueUpdate}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.gridContainer}>
-              {filteredTechniques.map(tech => (
-                <TechniqueGridItem
-                  key={tech.id}
-                  technique={tech}
-                  trainings={trainings}
-                  onDelete={handleDeleteTechnique}
-                  onUpdate={handleTechniqueUpdate}
-                />
-              ))}
-            </View>
-          )
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>{t('dashboard.no_techniques_found')}</Text>
-            <Text style={styles.emptyText}>{t('dashboard.no_techniques_saved')}</Text>
-          </View>
-        )}
-
-
       </View>
+
+      {/* ── Feed ────────────────────────────────────────── */}
+      {isLoading ? (
+        <View style={styles.skeletonContainer}>
+          {[0, 1, 2].map((i) => (
+            <View
+              key={i}
+              style={[styles.skeletonCard, { backgroundColor: palette.surface, borderColor: palette.border }]}
+            >
+              <View style={[styles.skeletonThumb, { backgroundColor: palette.surfaceSunken }]} />
+              <View style={styles.skeletonBody}>
+                <View style={[styles.skeletonLine, { backgroundColor: palette.surfaceSunken, width: '70%' }]} />
+                <View style={[styles.skeletonLine, { backgroundColor: palette.surfaceSunken, width: '45%' }]} />
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : filteredTechniques.length > 0 ? (
+        viewMode === 'list' ? (
+          <View key={`list-${feedKey}`} style={styles.listFeed}>
+            {filteredTechniques.map((tech, i) => (
+              <AnimatedCard key={tech.id} index={i}>
+                <TechniqueCard
+                  technique={tech}
+                  trainings={trainings}
+                  onDelete={handleDeleteTechnique}
+                  onUpdate={handleTechniqueUpdate}
+                />
+              </AnimatedCard>
+            ))}
+          </View>
+        ) : (
+          <View key={`grid-${feedKey}`} style={styles.gridFeed}>
+            {filteredTechniques.map((tech, i) => (
+              <AnimatedCard key={tech.id} index={i}>
+                <TechniqueGridItem
+                  technique={tech}
+                  trainings={trainings}
+                  onDelete={handleDeleteTechnique}
+                  onUpdate={handleTechniqueUpdate}
+                />
+              </AnimatedCard>
+            ))}
+          </View>
+        )
+      ) : (
+        <EmptyState
+          variant={filters.searchTerm ? 'search' : 'techniques'}
+          onCta={filters.searchTerm ? undefined : () => router.push('/add')}
+          ctaLabel={filters.searchTerm ? undefined : t('dashboard.add_first') || 'Add your first technique'}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -292,120 +322,87 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
   },
   content: {
-    padding: 16,
+    paddingHorizontal: Spacing.screenPaddingH,
+    paddingTop: Spacing.screenPaddingV,
+    paddingBottom: 32,
   },
-  warningContainer: {
-    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+
+  // Warning banner
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#DC2626',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-  },
-  warningTitle: {
-    color: '#F87171',
-    fontWeight: '600',
-    fontSize: 16,
-    marginBottom: 8,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    marginBottom: 20,
+    gap: 12,
   },
   warningText: {
-    color: '#FCA5A5',
-    fontSize: 14,
-    marginBottom: 12,
+    flex: 1,
   },
-  upgradeButton: {
-    backgroundColor: '#DC2626',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
+  warningTitle: {
+    ...Typography.bodySemibold,
+    marginBottom: 2,
   },
-  upgradeButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  header: {
-    marginBottom: 32,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
+  warningBody: {
+    ...Typography.caption,
   },
 
-  subtitle: {
-    color: '#9CA3AF',
-  },
-  techniquesSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    color: '#9CA3AF',
+  // Library section
+  librarySection: {
+    marginTop: 8,
     marginBottom: 16,
   },
-
-  viewModeContainer: {
+  sectionHeader: {
+    marginBottom: 12,
+  },
+  viewToggle: {
     flexDirection: 'row',
-    gap: 8,
-    alignSelf: 'flex-end',
-    marginTop: 8,
+    gap: 6,
+    justifyContent: 'flex-end',
+    marginTop: 10,
   },
-  viewModeButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#374151',
+  toggleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: '#4B5563',
-  },
-  viewModeButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
-  },
-  loadingContainer: {
     alignItems: 'center',
-    paddingVertical: 32,
+    justifyContent: 'center',
   },
-  loadingText: {
-    color: '#9CA3AF',
-    fontSize: 16,
+
+  // Feed
+  listFeed: {
+    gap: Spacing.itemGap,
   },
-  listContainer: {
-    gap: 16,
-  },
-  gridContainer: {
+  gridFeed: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    backgroundColor: '#1F2937',
-    borderRadius: 8,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: 'white',
-    marginBottom: 8,
-  },
-  emptyText: {
-    color: '#9CA3AF',
-  },
 
+  // Skeleton loader
+  skeletonContainer: {
+    gap: Spacing.itemGap,
+  },
+  skeletonCard: {
+    borderRadius: BorderRadius.card,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  skeletonThumb: {
+    width: '100%',
+    height: 180,
+  },
+  skeletonBody: {
+    padding: Spacing.cardPaddingH,
+    gap: 10,
+  },
+  skeletonLine: {
+    height: 12,
+    borderRadius: 6,
+  },
 });

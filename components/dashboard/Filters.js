@@ -1,10 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from '../Localization';
+import { useColorScheme } from '../../hooks/useColorScheme';
+import { Brand, Colors } from '../../constants/Colors';
+import { Typography } from '../../constants/Typography';
+import { BorderRadius, Spacing } from '../../constants/Spacing';
 
 const Filters = ({ filters, onFilterChange }) => {
   const { t, settings, user } = useAppContext();
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
 
   const getArray = (val) => {
     if (!val) return [];
@@ -17,97 +23,95 @@ const Filters = ({ filters, onFilterChange }) => {
 
   const handleCategoryToggle = (category) => {
     let newCategories;
-    
     if (category === 'All') {
-      // If "All" is clicked, show all techniques
       newCategories = ['All'];
     } else if (filters.categories.includes('All')) {
-      // If "All" is currently selected and another category is clicked, remove "All" and add the new category
       newCategories = [category];
     } else if (filters.categories.includes(category)) {
-      // If category is already selected, remove it
       newCategories = filters.categories.filter(c => c !== category);
-      // If no categories left, select "All"
-      if (newCategories.length === 0) {
-        newCategories = ['All'];
-      }
+      if (newCategories.length === 0) newCategories = ['All'];
     } else {
-      // Add new category to selection
       newCategories = [...filters.categories, category];
     }
-    
-    onFilterChange({
-      ...filters,
-      categories: newCategories
-    });
+    onFilterChange({ ...filters, categories: newCategories });
   };
 
   const clearFilters = () => {
-    onFilterChange({
-      searchTerm: '',
-      categories: ['All']
-    });
+    onFilterChange({ searchTerm: '', categories: ['All'] });
   };
+
+  const hasActiveFilters = filters.searchTerm || (filters.categories.length > 0 && !filters.categories.includes('All'));
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={16} color="#9CA3AF" style={styles.searchIcon} />
+      {/* Search */}
+      <View style={[styles.searchBox, { backgroundColor: palette.surfaceSunken, borderColor: palette.border }]}>
+        <Ionicons name="search-outline" size={16} color={palette.textTertiary} />
         <TextInput
           placeholder={t('dashboard.search_techniques')}
           value={filters.searchTerm}
           onChangeText={(text) => onFilterChange({ ...filters, searchTerm: text })}
-          style={styles.searchInput}
-          placeholderTextColor="#9CA3AF"
+          style={[styles.searchInput, { color: palette.text }]}
+          placeholderTextColor={palette.textTertiary}
         />
+        {filters.searchTerm.length > 0 && (
+          <TouchableOpacity onPress={() => onFilterChange({ ...filters, searchTerm: '' })} hitSlop={8}>
+            <Ionicons name="close-circle" size={16} color={palette.textTertiary} />
+          </TouchableOpacity>
+        )}
       </View>
-      
-      <View style={styles.categoriesContainer}>
-        <View style={styles.categoriesHeader}>
-          {(filters.searchTerm || (filters.categories.length > 0 && !filters.categories.includes('All'))) && (
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={clearFilters}
-            >
-              <Ionicons name="close" size={16} color="#9CA3AF" />
-              <Text style={styles.clearButtonText}>{t('dashboard.clear_filters')}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        
-        <View style={styles.categoriesList}>
+
+      {/* Category pills */}
+      <View style={styles.pillRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillScroll}>
+          {/* All pill */}
           <TouchableOpacity
             style={[
-              styles.categoryButton,
-              (filters.categories.includes('All') || filters.categories.length === 0) && styles.categoryButtonActive
+              styles.pill,
+              { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+              (filters.categories.includes('All') || filters.categories.length === 0) && {
+                backgroundColor: Brand.primaryMuted,
+                borderColor: Brand.primary,
+              },
             ]}
             onPress={() => handleCategoryToggle('All')}
           >
-            <Text style={[
-              styles.categoryButtonText,
-              (filters.categories.includes('All') || filters.categories.length === 0) && styles.categoryButtonTextActive
-            ]}>
+            <Text
+              style={[
+                styles.pillText,
+                { color: palette.textSecondary },
+                (filters.categories.includes('All') || filters.categories.length === 0) && { color: Brand.primary },
+              ]}
+            >
               All
             </Text>
           </TouchableOpacity>
-          {availableCategories.map(category => (
-            <TouchableOpacity
-              key={category}
-              style={[
-                styles.categoryButton,
-                filters.categories.includes(category) && styles.categoryButtonActive
-              ]}
-              onPress={() => handleCategoryToggle(category)}
-            >
-                             <Text style={[
-                 styles.categoryButtonText,
-                 filters.categories.includes(category) && styles.categoryButtonTextActive
-               ]}>
-                 {category}
-               </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+
+          {availableCategories.map(category => {
+            const active = filters.categories.includes(category);
+            return (
+              <TouchableOpacity
+                key={category}
+                style={[
+                  styles.pill,
+                  { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+                  active && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+                ]}
+                onPress={() => handleCategoryToggle(category)}
+              >
+                <Text style={[styles.pillText, { color: active ? Brand.primary : palette.textSecondary }]}>
+                  {category}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {hasActiveFilters && (
+          <TouchableOpacity style={styles.clearBtn} onPress={clearFilters} hitSlop={6}>
+            <Ionicons name="close" size={13} color={palette.textTertiary} />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -115,74 +119,43 @@ const Filters = ({ filters, onFilterChange }) => {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 16,
+    gap: 10,
   },
-  searchContainer: {
-    position: 'relative',
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: 12,
-    top: 12,
-    zIndex: 1,
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   searchInput: {
-    backgroundColor: '#374151',
-    borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    paddingHorizontal: 40,
-    paddingVertical: 12,
-    color: 'white',
-    fontSize: 16,
+    ...Typography.body,
+    flex: 1,
+    padding: 0,
   },
-  categoriesContainer: {
-    gap: 8,
-  },
-  categoriesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  categoriesTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-  },
-  clearButton: {
+  pillRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  clearButtonText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginLeft: 4,
-  },
-  categoriesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
   },
-  categoryButton: {
+  pillScroll: {
+    gap: 6,
+    paddingRight: 4,
+  },
+  pill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#374151',
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: '#4B5563',
   },
-  categoryButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
+  pillText: {
+    ...Typography.smallMedium,
   },
-  categoryButtonText: {
-    color: '#D1D5DB',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  categoryButtonTextActive: {
-    color: 'white',
+  clearBtn: {
+    padding: 4,
   },
 });
 
-export default Filters; 
+export default Filters;

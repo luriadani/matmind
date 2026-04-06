@@ -3,11 +3,18 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAppContext } from '../components/Localization';
 import { useSubscriptionStatus } from '../components/SubscriptionGuard';
+import { CategoryBadge } from '../components/ui/CategoryBadge';
+import { Button } from '../components/ui/Button';
 import { canCreateTechnique } from '../services/billing/entitlements';
 import { extractVideoTitle, generateTechniqueTitle } from '../utils/videoTitleExtractor';
+import { Brand, Colors } from '../constants/Colors';
+import { BorderRadius, Spacing } from '../constants/Spacing';
+import { Typography } from '../constants/Typography';
+import { useColorScheme } from '../hooks/useColorScheme';
+import PlatformIcon from '../components/PlatformIcon';
 
 interface TrainingData {
   id: string;
@@ -21,803 +28,426 @@ interface TrainingData {
   updated_date: string;
 }
 
+const getPlatformFromUrl = (url: string): string => {
+  if (!url) return 'custom';
+  const u = url.toLowerCase();
+  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
+  if (u.includes('instagram.com')) return 'instagram';
+  if (u.includes('facebook.com')) return 'facebook';
+  if (u.includes('tiktok.com')) return 'tiktok';
+  if (u.includes('vimeo.com')) return 'vimeo';
+  return 'custom';
+};
+
 export default function TechniqueForm() {
   const { t, settings, user, getTextDirection } = useAppContext();
   const { subscriptionStatus } = useSubscriptionStatus();
   const params = useLocalSearchParams();
   const isEditing = !!params.techniqueId;
-  
-  const [formData, setFormData] = useState({
-    title: '',
-    video_url: '',
-    notes: '',
-    tags: '',
-    categories: []
-  });
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
+
+  const [formData, setFormData] = useState({ title: '', video_url: '', notes: '', tags: '' });
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [newCategory, setNewCategory] = useState('');
-  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [trainings, setTrainings] = useState<TrainingData[]>([]);
   const [selectedTraining, setSelectedTraining] = useState<string | null>(null);
   const [showTrainingSelector, setShowTrainingSelector] = useState(false);
   const [showCategorySelector, setShowCategorySelector] = useState(false);
+  const [detectedPlatform, setDetectedPlatform] = useState('custom');
 
   const getArray = (val: any) => {
     if (!val) return [];
     if (Array.isArray(val)) return val.filter(Boolean);
-    if (typeof val === 'string') return val.split(',').map(item => item.trim()).filter(Boolean);
+    if (typeof val === 'string') return val.split(',').map((s) => s.trim()).filter(Boolean);
     return [];
   };
 
-  const defaultCategories = ["Try Next Class", "Show Coach", "Favorite"];
+  const defaultCategories = ['Try Next Class', 'Show Coach', 'Favorite'];
   const customCategories = getArray(user?.custom_technique_categories || settings.custom_technique_categories);
-  // If user has custom categories, use those. Otherwise, use default categories
-  const allAvailableCategories = customCategories.length > 0 ? customCategories : defaultCategories;
+  const allCategories = customCategories.length > 0 ? customCategories : defaultCategories;
 
-  // Load user's trainings
+  // Load trainings
   useEffect(() => {
-    const loadTrainings = async () => {
-      if (user) {
-        try {
-          const userTrainings = await Training.filter({ created_by: user.email });
-          setTrainings(userTrainings as TrainingData[]);
-        } catch (error) {
-          console.error('Failed to load trainings:', error);
-        }
-      }
-    };
-    loadTrainings();
+    if (!user) return;
+    Training.filter({ created_by: user.email })
+      .then((data) => setTrainings(data as TrainingData[]))
+      .catch(console.error);
   }, [user]);
 
-  // Load technique data if editing
+  // Load technique if editing
   useEffect(() => {
-    const loadTechniqueData = async () => {
-      if (isEditing && params.techniqueId) {
-        try {
-          const technique = await Technique.get(params.techniqueId as string);
-          if (technique) {
-            setFormData({
-              title: technique.title || '',
-              video_url: technique.video_url || '',
-              notes: technique.notes || '',
-              tags: technique.tags || '',
-              categories: []
-            });
-            const categories = getArray(technique.category);
-            setSelectedCategory(categories.length > 0 ? categories[0] : '');
-            setSelectedTraining((technique as any).training_id || null);
-          }
-        } catch (error) {
-          console.error('Failed to load technique data:', error);
-          Alert.alert('Error', 'Failed to load technique data');
-        }
-      }
-    };
-    loadTechniqueData();
+    if (!isEditing || !params.techniqueId) return;
+    Technique.get(params.techniqueId as string).then((technique) => {
+      if (!technique) return;
+      setFormData({
+        title: technique.title || '',
+        video_url: technique.video_url || '',
+        notes: technique.notes || '',
+        tags: technique.tags || '',
+      });
+      const cats = getArray(technique.category);
+      setSelectedCategory(cats[0] || '');
+      setSelectedTraining((technique as any).training_id || null);
+      setDetectedPlatform(getPlatformFromUrl(technique.video_url || ''));
+    }).catch(console.error);
   }, [isEditing, params.techniqueId]);
 
-  // Handle shared content from other apps
+  // Handle incoming share intent
   useEffect(() => {
     if (params.shared_url && !isEditing) {
-      console.log('📤 Handling shared content:', params);
-      
-      // Auto-fill the form with shared data
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         video_url: params.shared_url as string,
-        title: (params.shared_title as string) || prev.title
+        title: (params.shared_title as string) || prev.title,
       }));
-      
-      // Set default category to "Try Next Class" for shared content
-      if (!selectedCategory) {
-        setSelectedCategory('Try Next Class');
-      }
-      
-      console.log('✅ Pre-filled form with shared content');
+      setDetectedPlatform((params.shared_platform as string) || getPlatformFromUrl(params.shared_url as string));
+      if (!selectedCategory) setSelectedCategory('Try Next Class');
     }
-  }, [params.shared_url, params.shared_title, isEditing]);
+  }, [params.shared_url]);
 
-  // Auto-detect and paste URLs from clipboard
+  // Clipboard fallback
   useEffect(() => {
-    const checkClipboardForURL = async () => {
-      // Only check clipboard if form is not being edited and no shared content
-      if (isEditing || params.shared_url || formData.video_url) {
-        return;
-      }
-
+    if (isEditing || params.shared_url || formData.video_url) return;
+    const check = async () => {
       try {
-        console.log('📋 Checking clipboard for video URLs...');
-        const clipboardContent = await Clipboard.getStringAsync();
-        
-        if (clipboardContent && clipboardContent.length > 0) {
-          console.log('📋 Clipboard content:', clipboardContent);
-          
-          // Check if clipboard contains a video platform URL
-          const isVideoURL = 
-            clipboardContent.includes('youtube.com') ||
-            clipboardContent.includes('youtu.be') ||
-            clipboardContent.includes('instagram.com') ||
-            clipboardContent.includes('facebook.com') ||
-            clipboardContent.includes('tiktok.com') ||
-            clipboardContent.includes('vimeo.com');
-            
-          if (isVideoURL && clipboardContent.startsWith('http')) {
-            console.log('🎬 Video URL detected in clipboard:', clipboardContent);
-            
-            // Detect platform and extract title
-            let platform = 'web';
-            if (clipboardContent.includes('youtube.com') || clipboardContent.includes('youtu.be')) {
-              platform = 'youtube';
-            } else if (clipboardContent.includes('instagram.com')) {
-              platform = 'instagram';
-            } else if (clipboardContent.includes('facebook.com')) {
-              platform = 'facebook';
-            } else if (clipboardContent.includes('tiktok.com')) {
-              platform = 'tiktok';
-            }
-            
-            // Extract title
-            try {
-              const extractedTitle = await extractVideoTitle(clipboardContent, platform);
-              const techniqueTitle = generateTechniqueTitle(extractedTitle, platform);
-              
-              // Auto-fill the form
-              setFormData(prev => ({
-                ...prev,
-                video_url: clipboardContent,
-                title: techniqueTitle || extractedTitle || prev.title
-              }));
-              
-              // Set default category
-              if (!selectedCategory) {
-                setSelectedCategory('Try Next Class');
-              }
-              
-              console.log('✅ Auto-filled form from clipboard with title:', techniqueTitle || extractedTitle);
-              
-              // Optional: Show a brief notification that URL was auto-pasted
-              // You can uncomment this if you want user feedback
-              // Alert.alert('URL Detected', 'Video URL automatically pasted from clipboard!', [{ text: 'OK' }]);
-              
-            } catch (titleError) {
-              console.error('Error extracting title:', titleError);
-              // Still paste the URL even if title extraction fails
-              setFormData(prev => ({
-                ...prev,
-                video_url: clipboardContent
-              }));
-              
-              if (!selectedCategory) {
-                setSelectedCategory('Try Next Class');
-              }
-            }
+        const text = await Clipboard.getStringAsync();
+        const isVideo = ['youtube.com', 'youtu.be', 'instagram.com', 'facebook.com', 'tiktok.com', 'vimeo.com']
+          .some((d) => text.includes(d));
+        if (isVideo && text.startsWith('http')) {
+          const platform = getPlatformFromUrl(text);
+          try {
+            const extracted = await extractVideoTitle(text, platform);
+            const title = generateTechniqueTitle(extracted, platform);
+            setFormData((prev) => ({ ...prev, video_url: text, title: title || extracted || prev.title }));
+            setDetectedPlatform(platform);
+            if (!selectedCategory) setSelectedCategory('Try Next Class');
+          } catch {
+            setFormData((prev) => ({ ...prev, video_url: text }));
           }
         }
-      } catch (error) {
-        console.error('Error checking clipboard:', error);
-        // Fail silently - clipboard access might not be available
-      }
+      } catch { /* clipboard not available */ }
     };
+    const t = setTimeout(check, 500);
+    return () => clearTimeout(t);
+  }, [isEditing, params.shared_url]);
 
-    // Add a small delay to ensure form is fully loaded
-    const timeoutId = setTimeout(() => {
-      checkClipboardForURL();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [isEditing, params.shared_url, formData.video_url, selectedCategory]);
-
-  const handleCategorySelect = (category: string) => {
-    const newCategory = selectedCategory === category ? '' : category;
-    setSelectedCategory(newCategory);
-    
-    // Clear training selection if category is not "Try Next Class"
-    if (newCategory !== 'Try Next Class') {
-      setSelectedTraining(null);
-    }
-  };
-
-
-
-  const handleTrainingSelect = (trainingId: string | null) => {
-    setSelectedTraining(trainingId);
-    setShowTrainingSelector(false);
-  };
-
-  const formatTrainingDisplay = (training: TrainingData) => {
-    return `${training.dayOfWeek} at ${training.time} - ${training.category}`;
-  };
-
-  const getPlatformFromUrl = (url: string) => {
-    if (!url) return 'custom';
-    
-    const hostname = url.toLowerCase();
-    if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
-      return 'youtube';
-    } else if (hostname.includes('instagram.com')) {
-      return 'instagram';
-    } else if (hostname.includes('facebook.com')) {
-      return 'facebook';
-    } else if (hostname.includes('tiktok.com')) {
-      return 'tiktok';
-    } else if (hostname.includes('vimeo.com')) {
-      return 'vimeo';
-    } else {
-      return 'custom';
-    }
+  const handleVideoUrlChange = (url: string) => {
+    setFormData((prev) => ({ ...prev, video_url: url }));
+    setDetectedPlatform(getPlatformFromUrl(url));
   };
 
   const handleSubmit = async () => {
-    if (!formData.title.trim()) {
-      Alert.alert('Error', 'Technique title is required');
-      return;
-    }
-
-    if (!user) {
-      Alert.alert('Error', 'User not loaded. Please try again.');
-      return;
-    }
-
+    if (!formData.title.trim()) { Alert.alert('Error', 'Technique title is required'); return; }
+    if (!user) { Alert.alert('Error', 'User not loaded.'); return; }
     setIsLoading(true);
     try {
-      // Clean up training_id if category is not "Try Next Class"
-      let finalTrainingId = selectedTraining;
-      if (selectedCategory !== 'Try Next Class' && selectedTraining) {
-        finalTrainingId = null;
-      }
-
+      const finalTrainingId = selectedCategory === 'Try Next Class' ? selectedTraining : null;
+      const base = {
+        ...formData,
+        category: selectedCategory,
+        training_id: finalTrainingId,
+        source_platform: getPlatformFromUrl(formData.video_url),
+        updated_date: new Date().toISOString(),
+      };
       if (isEditing && params.techniqueId) {
-        // Update existing technique
-        const updateData = {
-          ...formData,
-          category: selectedCategory,
-          training_id: finalTrainingId,
-          source_platform: getPlatformFromUrl(formData.video_url),
-          updated_date: new Date().toISOString()
-        };
-        await Technique.update(params.techniqueId as string, updateData);
-        Alert.alert('Success', 'Technique updated successfully!', [
-          { text: 'OK', onPress: () => router.replace('/(tabs)') }
-        ]);
+        await Technique.update(params.techniqueId as string, base);
+        Alert.alert('Saved', 'Technique updated.', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
       } else {
-        const ownTechniques = await Technique.filter({ created_by: user.email });
-        if (!canCreateTechnique(subscriptionStatus, ownTechniques.length)) {
-          Alert.alert('Upgrade required', 'You reached your free technique limit. Upgrade to continue.');
+        const own = await Technique.filter({ created_by: user.email });
+        if (!canCreateTechnique(subscriptionStatus, own.length)) {
+          Alert.alert('Upgrade required', 'You reached your free technique limit.');
           router.push('/pricing');
           return;
         }
-
-        // Create new technique
-        const createData = {
-          ...formData,
-          category: selectedCategory,
-          training_id: finalTrainingId,
-          source_platform: getPlatformFromUrl(formData.video_url),
-          created_by: user?.email || 'unknown@example.com',
-          created_date: new Date().toISOString(),
-          updated_date: new Date().toISOString()
-        };
-        await Technique.create(createData);
-        Alert.alert('Success', 'Technique created successfully!', [
-          { text: 'OK', onPress: () => router.replace('/(tabs)') }
-        ]);
+        await Technique.create({ ...base, created_by: user.email, created_date: new Date().toISOString() });
+        Alert.alert('Saved', 'Technique added.', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
       }
     } catch (error) {
-      console.error('Failed to save technique:', error);
-      Alert.alert('Error', `Failed to save technique: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      Alert.alert('Error', `Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCancel = () => {
-    router.replace('/(tabs)');
-  };
-
-  // Show loading if user is not loaded yet
   if (!user) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: 'white', fontSize: 16 }}>Loading user data...</Text>
+      <View style={[styles.loader, { backgroundColor: palette.background }]}>
+        <Text style={[styles.loaderText, { color: palette.textSecondary }]}>Loading…</Text>
       </View>
     );
   }
 
-  // Add error boundary for any rendering issues
-  try {
+  const assignedTraining = trainings.find((tr) => tr.id === selectedTraining);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-          <Ionicons name="close" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{isEditing ? t('add_technique.edit_title') : t('add_technique.title')}</Text>
-        <TouchableOpacity 
-          style={[styles.saveButton, isLoading && styles.saveButtonDisabled]} 
+    <View style={[styles.screen, { backgroundColor: palette.background }]}>
+      {/* Modal nav bar */}
+      <View style={[styles.navBar, { borderBottomColor: palette.border }]}>
+        <Pressable style={styles.navBtn} onPress={() => router.replace('/(tabs)')}>
+          <Ionicons name="close" size={22} color={palette.text} />
+        </Pressable>
+        <Text style={[styles.navTitle, { color: palette.text }]}>
+          {isEditing ? (t('add_technique.edit_title') || 'Edit Technique') : (t('add_technique.title') || 'New Technique')}
+        </Text>
+        <Button
+          label={isLoading ? (t('general.saving') || 'Saving…') : (t('general.save') || 'Save')}
+          variant="primary"
+          size="sm"
+          loading={isLoading}
           onPress={handleSubmit}
-          disabled={isLoading}
-        >
-          <Text style={styles.saveButtonText}>
-            {isLoading ? t('general.saving') : t('general.save')}
-          </Text>
-        </TouchableOpacity>
+        />
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>{t('add_technique.video_url_label')}</Text>
-          <View style={styles.formField}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Video URL ─────────────────────────────── */}
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+            {(t('add_technique.video_url_label') || 'Video URL').toUpperCase()}
+          </Text>
+          <View style={[styles.urlRow, { backgroundColor: palette.surfaceSunken, borderColor: palette.border }]}>
+            <View style={styles.platformIcon}>
+              <PlatformIcon platform={detectedPlatform} size={18} color={Brand.primary} />
+            </View>
             <TextInput
-              style={styles.input}
+              style={[styles.urlInput, { color: palette.text }]}
               value={formData.video_url}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, video_url: text }))}
-              placeholder={t('add_technique.video_url_placeholder')}
-              placeholderTextColor="#9CA3AF"
+              onChangeText={handleVideoUrlChange}
+              placeholder={t('add_technique.video_url_placeholder') || 'Paste a YouTube, Instagram or TikTok URL'}
+              placeholderTextColor={palette.textTertiary}
+              autoCapitalize="none"
+              keyboardType="url"
             />
           </View>
         </View>
 
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>{t('add_technique.technique_name_label')}</Text>
-          <View style={styles.formField}>
-            <TextInput
-              style={styles.input}
-              value={formData.title}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, title: text }))}
-              placeholder={t('add_technique.technique_name_placeholder')}
-              placeholderTextColor="#9CA3AF"
-            />
+        {/* ── Title ─────────────────────────────────── */}
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+            {(t('add_technique.technique_name_label') || 'Technique name').toUpperCase()}
+          </Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: palette.surfaceSunken, borderColor: palette.border, color: palette.text }]}
+            value={formData.title}
+            onChangeText={(v) => setFormData((p) => ({ ...p, title: v }))}
+            placeholder={t('add_technique.technique_name_placeholder') || 'e.g. Rear Naked Choke'}
+            placeholderTextColor={palette.textTertiary}
+          />
+        </View>
+
+        {/* ── Category ──────────────────────────────── */}
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+            {(t('add_technique.tags_label') || 'Category').toUpperCase()}
+          </Text>
+          <View style={styles.pillRow}>
+            {allCategories.map((cat) => (
+              <Pressable
+                key={cat}
+                onPress={() => {
+                  setSelectedCategory(selectedCategory === cat ? '' : cat);
+                  if (cat !== 'Try Next Class') setSelectedTraining(null);
+                }}
+              >
+                <CategoryBadge
+                  category={cat}
+                  variant={selectedCategory === cat ? 'filled' : 'outline'}
+                  style={selectedCategory === cat ? { borderWidth: 2 } : { opacity: 0.6 }}
+                />
+              </Pressable>
+            ))}
           </View>
         </View>
 
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>{t('add_technique.tags_label')}</Text>
-          <View style={styles.formField}>
-            <TouchableOpacity
-              style={styles.dropdownButton}
-              onPress={() => setShowCategorySelector(!showCategorySelector)}
+        {/* ── Training assignment (only for Try Next Class) ── */}
+        {selectedCategory === 'Try Next Class' && (
+          <View style={styles.field}>
+            <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+              {(t('add_technique.when_to_show') || 'Show before').toUpperCase()}
+            </Text>
+            <Pressable
+              onPress={() => setShowTrainingSelector(!showTrainingSelector)}
+              style={[styles.dropdown, { backgroundColor: palette.surfaceSunken, borderColor: palette.border }]}
             >
-              <Text style={[
-                styles.dropdownButtonText,
-                !selectedCategory && styles.dropdownButtonTextPlaceholder
-              ]}>
-                {selectedCategory || t('add_technique.select_category')}
+              <Ionicons name="calendar-outline" size={16} color={palette.textSecondary} />
+              <Text style={[styles.dropdownValue, { color: selectedTraining ? palette.text : palette.textTertiary }]}>
+                {assignedTraining
+                  ? `${assignedTraining.dayOfWeek} · ${assignedTraining.time}`
+                  : (t('add_technique.always_show') || 'Every training')}
               </Text>
-              <Ionicons 
-                name={showCategorySelector ? "chevron-up" : "chevron-down"} 
-                size={20} 
-                color="#9CA3AF" 
+              <Ionicons
+                name={showTrainingSelector ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={palette.textSecondary}
               />
-            </TouchableOpacity>
-            
-            {showCategorySelector && (
-              <View style={styles.dropdownOptions}>
-                <ScrollView 
-                  style={styles.dropdownScrollView}
-                  showsVerticalScrollIndicator={true}
-                  nestedScrollEnabled={true}
+            </Pressable>
+
+            {showTrainingSelector && (
+              <View style={[styles.dropdownMenu, { backgroundColor: palette.surfaceElevated, borderColor: palette.border }]}>
+                <Pressable
+                  style={[styles.dropdownOption, { borderBottomColor: palette.border }]}
+                  onPress={() => { setSelectedTraining(null); setShowTrainingSelector(false); }}
                 >
-                  {allAvailableCategories.map(category => (
-                    <TouchableOpacity
-                      key={category}
-                      style={styles.dropdownOption}
-                      onPress={() => {
-                        handleCategorySelect(category);
-                        setShowCategorySelector(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownOptionText}>{category}</Text>
-                      {selectedCategory === category && (
-                        <Ionicons name="checkmark" size={16} color="#60A5FA" />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                  <Text style={[styles.dropdownOptionText, { color: !selectedTraining ? Brand.primary : palette.text }]}>
+                    {t('add_technique.always_show') || 'Every training'}
+                  </Text>
+                  {!selectedTraining && <Ionicons name="checkmark" size={16} color={Brand.primary} />}
+                </Pressable>
+                {trainings.map((tr) => (
+                  <Pressable
+                    key={tr.id}
+                    style={[styles.dropdownOption, { borderBottomColor: palette.border }]}
+                    onPress={() => { setSelectedTraining(tr.id); setShowTrainingSelector(false); }}
+                  >
+                    <Text style={[styles.dropdownOptionText, { color: selectedTraining === tr.id ? Brand.primary : palette.text }]}>
+                      {tr.dayOfWeek} · {tr.time} — {tr.category}
+                    </Text>
+                    {selectedTraining === tr.id && <Ionicons name="checkmark" size={16} color={Brand.primary} />}
+                  </Pressable>
+                ))}
               </View>
             )}
           </View>
-        </View>
-
-        {selectedCategory === 'Try Next Class' && (
-          <View style={styles.formSection}>
-            <Text style={styles.sectionTitle}>{t('add_technique.when_to_show')}</Text>
-            <View style={styles.formField}>
-              <TouchableOpacity
-                style={styles.dropdownButton}
-                onPress={() => setShowTrainingSelector(!showTrainingSelector)}
-              >
-                <Text style={[
-                  styles.dropdownButtonText,
-                  !selectedTraining && styles.dropdownButtonTextPlaceholder
-                ]}>
-                  {selectedTraining ? 
-                    trainings.find(t => t.id === selectedTraining) ? 
-                      formatTrainingDisplay(trainings.find(t => t.id === selectedTraining)!) : 
-                      t('add_technique.selected_training') : 
-                    t('add_technique.always_show')
-                  }
-                </Text>
-                <Ionicons 
-                  name={showTrainingSelector ? "chevron-up" : "chevron-down"} 
-                  size={20} 
-                  color="#9CA3AF" 
-                />
-              </TouchableOpacity>
-              
-              {showTrainingSelector && (
-                <View style={styles.dropdownOptions}>
-                  <ScrollView 
-                    style={styles.dropdownScrollView}
-                    showsVerticalScrollIndicator={true}
-                    nestedScrollEnabled={true}
-                  >
-                    <TouchableOpacity
-                      style={styles.dropdownOption}
-                      onPress={() => {
-                        handleTrainingSelect(null);
-                        setShowTrainingSelector(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownOptionText}>{t('add_technique.always_show')}</Text>
-                      {!selectedTraining && (
-                        <Ionicons name="checkmark" size={16} color="#60A5FA" />
-                      )}
-                    </TouchableOpacity>
-                    
-                    {trainings.map(training => (
-                      <TouchableOpacity
-                        key={training.id}
-                        style={styles.dropdownOption}
-                        onPress={() => {
-                          handleTrainingSelect(training.id);
-                          setShowTrainingSelector(false);
-                        }}
-                      >
-                        <Text style={styles.dropdownOptionText}>{formatTrainingDisplay(training)}</Text>
-                        {selectedTraining === training.id && (
-                          <Ionicons name="checkmark" size={16} color="#60A5FA" />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
-          </View>
         )}
 
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Tags</Text>
-          <View style={styles.formField}>
-            <TextInput
-              style={styles.input}
-              value={formData.tags}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, tags: text }))}
-              placeholder="Enter tags separated by commas"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
+        {/* ── Tags ──────────────────────────────────── */}
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>TAGS</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: palette.surfaceSunken, borderColor: palette.border, color: palette.text }]}
+            value={formData.tags}
+            onChangeText={(v) => setFormData((p) => ({ ...p, tags: v }))}
+            placeholder="e.g. submission, guard, gi"
+            placeholderTextColor={palette.textTertiary}
+          />
         </View>
 
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Notes</Text>
-          <View style={styles.formField}>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={formData.notes}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, notes: text }))}
-              placeholder="Add notes about this technique"
-              placeholderTextColor="#9CA3AF"
-              multiline
-              numberOfLines={4}
-            />
-          </View>
+        {/* ── Notes ─────────────────────────────────── */}
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>NOTES</Text>
+          <TextInput
+            style={[styles.input, styles.textArea, { backgroundColor: palette.surfaceSunken, borderColor: palette.border, color: palette.text }]}
+            value={formData.notes}
+            onChangeText={(v) => setFormData((p) => ({ ...p, notes: v }))}
+            placeholder="Key details to remember about this technique…"
+            placeholderTextColor={palette.textTertiary}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
         </View>
-
-
-
-
       </ScrollView>
     </View>
   );
-  } catch (error) {
-    console.error('Technique form render error:', error);
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-        <Text style={{ color: '#EF4444', fontSize: 16, textAlign: 'center', marginBottom: 20 }}>
-          Error loading form: {error instanceof Error ? error.message : 'Unknown error'}
-        </Text>
-        <TouchableOpacity 
-          style={styles.saveButton} 
-          onPress={() => router.replace('/(tabs)')}
-        >
-          <Text style={styles.saveButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#111827',
-  },
-  header: {
+  screen: { flex: 1 },
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loaderText: { ...Typography.body },
+
+  navBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.screenPaddingH,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  cancelButton: {
-    padding: 8,
+  navBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-  },
-  saveButton: {
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  navTitle: { ...Typography.bodySemibold },
+
+  scroll: { flex: 1 },
   content: {
-    flex: 1,
-    padding: 16,
-  },
-  formSection: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-    marginBottom: 8,
-  },
-  sectionDescription: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  formField: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#374151',
-    borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    padding: 12,
-    color: 'white',
-    fontSize: 16,
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  categoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#374151',
-    borderWidth: 1,
-    borderColor: '#4B5563',
-  },
-  categoryButtonSelected: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
-  },
-  categoryButtonText: {
-    color: '#D1D5DB',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  categoryButtonTextSelected: {
-    color: 'white',
-  },
-  defaultCategoryButton: {
-    backgroundColor: '#1F2937',
-    borderColor: '#60A5FA',
-  },
-  defaultCategoryButtonText: {
-    color: '#60A5FA',
-    fontWeight: '600',
-  },
-  categorySection: {
-    marginBottom: 16,
-  },
-  categorySectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#D1D5DB',
-    marginBottom: 8,
+    padding: Spacing.screenPaddingH,
+    gap: 24,
+    paddingBottom: 48,
   },
 
-  addCategoryButton: {
+  field: { gap: 8 },
+  fieldLabel: {
+    ...Typography.micro,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+
+  // URL row with platform icon
+  urlRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#374151',
     borderWidth: 1,
-    borderColor: '#60A5FA',
-    gap: 6,
+    borderRadius: BorderRadius.input,
+    overflow: 'hidden',
   },
-  addCategoryButtonText: {
-    color: '#60A5FA',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  newCategoryInput: {
-    marginTop: 12,
-    gap: 8,
-  },
-  categoryInput: {
-    backgroundColor: '#374151',
-    borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    padding: 12,
-    color: 'white',
-    fontSize: 16,
-  },
-  categoryInputButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  cancelCategoryButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: '#374151',
-    borderWidth: 1,
-    borderColor: '#6B7280',
+  platformIcon: {
+    width: 42,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  cancelCategoryButtonText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  confirmCategoryButton: {
+  urlInput: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 11,
+    paddingRight: 12,
+    ...Typography.body,
+  },
+
+  // Standard input
+  input: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.input,
     paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
+    paddingVertical: 11,
+    ...Typography.body,
   },
-  confirmCategoryButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '500',
+  textArea: {
+    minHeight: 100,
+    lineHeight: 22,
   },
-  selectedCategories: {
-    marginTop: 16,
-  },
-  selectedCategoriesTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 8,
-  },
-  selectedCategoriesList: {
+
+  // Category pills
+  pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  selectedCategoryBadge: {
+
+  // Dropdown
+  dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    gap: 4,
-  },
-  selectedCategoryText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  removeCategoryButton: {
-    padding: 2,
-  },
-  trainingOptions: {
-    gap: 12,
-  },
-  trainingOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#1F2937',
+    gap: 8,
     borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
+    borderRadius: BorderRadius.input,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
   },
-  trainingOptionSelected: {
-    borderColor: '#60A5FA',
-    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+  dropdownValue: {
+    ...Typography.body,
+    flex: 1,
   },
-  trainingOptionText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginLeft: 12,
-  },
-  trainingOptionTextSelected: {
-    color: '#60A5FA',
-  },
-  dropdownButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#374151',
+  dropdownMenu: {
     borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    padding: 12,
-  },
-  dropdownButtonText: {
-    color: 'white',
-    fontSize: 16,
-  },
-  dropdownButtonTextPlaceholder: {
-    color: '#9CA3AF',
-  },
-  dropdownOptions: {
-    backgroundColor: '#1F2937',
-    borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
+    borderRadius: BorderRadius.md,
     marginTop: 4,
-    maxHeight: 200,
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    elevation: 5,
+    overflow: 'hidden',
   },
   dropdownOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  dropdownOptionText: {
-    color: 'white',
-    fontSize: 16,
-  },
-  dropdownScrollView: {
-    maxHeight: 200,
-  },
-}); 
+  dropdownOptionText: { ...Typography.body },
+});

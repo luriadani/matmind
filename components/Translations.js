@@ -7,19 +7,31 @@ export const translations = {
     'general.delete': 'מחק',
     'general.error': 'שגיאה',
     'general.saving': 'שומר...',
+    'general.today': 'היום',
     'general.view_list': 'תצוגת רשימה',
     'general.view_grid': 'תצוגת רשת',
+
+    // Tabs
+    'tabs.library': 'ספרייה',
+    'tabs.schedule': 'לוח זמנים',
+    'tabs.settings': 'הגדרות',
+    'tabs.admin': 'ניהול',
     
 
     
     // Dashboard
-    'dashboard.title': 'טכניקות',
-    'dashboard.subtitle': 'ניהול הטכניקות שלך',
+    'dashboard.title': 'מה הלאה',
+    'dashboard.subtitle': 'טכניקות לחזור עליהן לפני האימון הבא',
     'dashboard.add_new_technique': 'הוסף טכניקה חדשה',
     'dashboard.all_techniques': 'כל הטכניקות',
     'dashboard.all_techniques_subtitle': 'טכניקות שמורות וטכניקות משותפות',
     'dashboard.no_techniques_found': 'לא נמצאו טכניקות',
     'dashboard.no_techniques_saved': 'אין לך טכניקות שמורות עדיין',
+    'dashboard.library': 'הספרייה שלך',
+    'dashboard.search_techniques': 'חיפוש טכניקות...',
+    'dashboard.add_first': 'הוסף את הטכניקה הראשונה שלך',
+    'dashboard.selected_drills': 'תרגולים נבחרים',
+    'dashboard.no_upcoming_practices': 'אין אימונים קרובים מתוזמנים',
     
     // Add Technique
     'add_technique.title': 'הוסף טכניקה חדשה',
@@ -111,7 +123,8 @@ export const translations = {
     'notifications.reminder_message': 'זמן לבדוק את הטכניקות שלך לפני האימון!',
     'notifications.techniques_ready': '{count} טכניקות מוכנות לאימון',
     'notifications.minutes_before_training': 'דקות לפני האימון',
-    
+    'notifications.enable_notifications': 'הפעל התראות',
+
     // Pricing
     'pricing.title': 'תוכניות מנוי',
     'pricing.subtitle': 'בחר את התוכנית המתאימה לך',
@@ -219,20 +232,32 @@ export const translations = {
     'general.delete': 'Delete',
     'general.error': 'Error',
     'general.saving': 'Saving...',
+    'general.today': 'Today',
     'general.view_list': 'List View',
     'general.view_grid': 'Grid View',
+
+    // Tabs
+    'tabs.library': 'Library',
+    'tabs.schedule': 'Schedule',
+    'tabs.settings': 'Settings',
+    'tabs.admin': 'Admin',
     
 
     
     // Dashboard
-    'dashboard.title': 'Techniques',
-    'dashboard.subtitle': 'Manage your techniques',
+    'dashboard.title': 'Coming Up Next',
+    'dashboard.subtitle': 'Techniques to review before your next training',
     'dashboard.add_new_technique': 'Add New Technique',
     'dashboard.all_techniques': 'All Techniques',
     'dashboard.all_techniques_subtitle': 'Saved and shared techniques',
     'dashboard.no_techniques_found': 'No techniques found',
     'dashboard.no_techniques_saved': 'You have no saved techniques yet',
-    
+    'dashboard.library': 'Your Library',
+    'dashboard.search_techniques': 'Search techniques...',
+    'dashboard.add_first': 'Add your first technique',
+    'dashboard.selected_drills': 'Selected Drills',
+    'dashboard.no_upcoming_practices': 'No upcoming practices scheduled',
+
     // Add Technique
     'add_technique.title': 'Add New Technique',
     'add_technique.edit_title': 'Edit Technique',
@@ -323,6 +348,7 @@ export const translations = {
     'notifications.reminder_message': 'Time to review your techniques before training!',
     'notifications.techniques_ready': '{count} techniques ready for training',
     'notifications.minutes_before_training': 'Minutes before training',
+    'notifications.enable_notifications': 'Enable Notifications',
     
     // Pricing
     'pricing.title': 'Subscription Plans',
