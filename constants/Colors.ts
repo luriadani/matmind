@@ -1,26 +1,169 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * MatMind Design System — Color Tokens
+ *
+ * Philosophy:
+ *  - Dark mode is the primary experience (content-forward like Instagram/TikTok)
+ *  - Light mode is clean and airy (white cards, soft backgrounds)
+ *  - Primary: Indigo (#5B6CF5) — modern, calm, slightly vibrant
+ *  - Accent: Coral (#FF6B6B) — reminders, alerts, urgency
+ *  - Minimal palette — 2–3 colors max visible at once
  */
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// ─── Brand ────────────────────────────────────────────────────────────────────
+export const Brand = {
+  primary: '#5B6CF5',       // Indigo — main CTAs, active states, links
+  primaryLight: '#7C8BFF',  // Hover / pressed state
+  primaryDark: '#4A5AE0',   // Deeper shade
+  primaryMuted: 'rgba(91,108,245,0.12)', // Subtle tinted backgrounds
 
-export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
-  },
+  accent: '#FF6B6B',        // Coral — reminders, upcoming, alerts
+  accentLight: '#FF8E8E',
+  accentMuted: 'rgba(255,107,107,0.12)',
+
+  success: '#00C896',       // Green — completed, active
+  successMuted: 'rgba(0,200,150,0.12)',
+
+  warning: '#FFB020',       // Amber — overdue, caution
+  warningMuted: 'rgba(255,176,32,0.12)',
+} as const;
+
+// ─── Light Mode ───────────────────────────────────────────────────────────────
+const light = {
+  // Backgrounds
+  background: '#F8F9FE',       // App background — very slight blue tint
+  surface: '#FFFFFF',          // Cards, sheets
+  surfaceElevated: '#FFFFFF',  // Modals, popovers
+  surfaceSunken: '#F0F1F8',    // Input fields, inactive areas
+
+  // Text
+  text: '#0F0F1A',             // Primary text — near-black
+  textSecondary: '#6B7280',    // Secondary / metadata
+  textTertiary: '#A0A8B8',     // Placeholder, disabled
+  textInverse: '#FFFFFF',
+
+  // Borders & Dividers
+  border: '#E8EAF2',
+  borderStrong: '#D0D4E8',
+  divider: '#F0F1F8',
+
+  // Interactive
+  tint: Brand.primary,
+  icon: '#6B7280',
+  tabIconDefault: '#A0A8B8',
+  tabIconSelected: Brand.primary,
+
+  // Overlays
+  overlay: 'rgba(15,15,26,0.5)',
+  thumbnailOverlay: 'rgba(15,15,26,0.35)',
+
+  // Semantic (reuse Brand)
+  ...Brand,
 };
+
+// ─── Dark Mode ────────────────────────────────────────────────────────────────
+const dark = {
+  // Backgrounds — deep, slightly blue-tinted blacks (Instagram/TikTok feel)
+  background: '#08080F',       // App background
+  surface: '#13131E',          // Cards
+  surfaceElevated: '#1C1C2E',  // Modals, bottom sheets
+  surfaceSunken: '#0F0F18',    // Input fields
+
+  // Text
+  text: '#F2F2F8',             // Primary text
+  textSecondary: '#8E8EA8',    // Metadata, labels
+  textTertiary: '#52526A',     // Placeholder, disabled
+  textInverse: '#0F0F1A',
+
+  // Borders & Dividers
+  border: '#2A2A40',
+  borderStrong: '#3C3C58',
+  divider: '#1C1C2E',
+
+  // Interactive
+  tint: Brand.primaryLight,
+  icon: '#8E8EA8',
+  tabIconDefault: '#52526A',
+  tabIconSelected: Brand.primaryLight,
+
+  // Overlays
+  overlay: 'rgba(0,0,0,0.7)',
+  thumbnailOverlay: 'rgba(0,0,0,0.4)',
+
+  // Semantic (reuse Brand)
+  ...Brand,
+};
+
+export const Colors = { light, dark };
+
+export type ColorScheme = typeof light;
+
+// ─── Category Colors ─────────────────────────────────────────────────────────
+// Used for technique category badges
+export const CategoryColors = {
+  'Try Next Class': {
+    background: 'rgba(91,108,245,0.15)',
+    text: '#7C8BFF',
+    border: 'rgba(91,108,245,0.3)',
+  },
+  'Show Coach': {
+    background: 'rgba(0,200,150,0.15)',
+    text: '#00C896',
+    border: 'rgba(0,200,150,0.3)',
+  },
+  'Favorite': {
+    background: 'rgba(255,176,32,0.15)',
+    text: '#FFB020',
+    border: 'rgba(255,176,32,0.3)',
+  },
+  default: {
+    background: 'rgba(142,142,168,0.15)',
+    text: '#8E8EA8',
+    border: 'rgba(142,142,168,0.3)',
+  },
+} as const;
+
+// ─── Media / Video ───────────────────────────────────────────────────────────
+// Values that apply regardless of color scheme (e.g., video UI always dark)
+export const Media = {
+  thumbnailPlaceholderBg: '#1C1C2E', // Dark navy — video placeholder background
+  thumbnailOverlayColor: 'rgba(0,0,0,0.18)',
+} as const;
+
+// ─── Training Category Colors ─────────────────────────────────────────────────
+export const TrainingCategoryColors = {
+  gi: {
+    background: 'rgba(91,108,245,0.15)',
+    text: '#7C8BFF',
+    border: 'rgba(91,108,245,0.25)',
+  },
+  no_gi: {
+    background: 'rgba(255,107,107,0.15)',
+    text: '#FF8E8E',
+    border: 'rgba(255,107,107,0.25)',
+  },
+  competition: {
+    background: 'rgba(255,176,32,0.15)',
+    text: '#FFB020',
+    border: 'rgba(255,176,32,0.25)',
+  },
+  beginner: {
+    background: 'rgba(0,200,150,0.15)',
+    text: '#00C896',
+    border: 'rgba(0,200,150,0.25)',
+  },
+  advanced: {
+    background: 'rgba(255,107,107,0.15)',
+    text: '#FF6B6B',
+    border: 'rgba(255,107,107,0.25)',
+  },
+  open_mat: {
+    background: 'rgba(142,142,168,0.15)',
+    text: '#8E8EA8',
+    border: 'rgba(142,142,168,0.25)',
+  },
+  default: {
+    background: 'rgba(142,142,168,0.15)',
+    text: '#8E8EA8',
+    border: 'rgba(142,142,168,0.25)',
+  },
+} as const;

@@ -1,48 +1,50 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { Brand, Colors } from '../constants/Colors';
+import { Typography } from '../constants/Typography';
+import { BorderRadius } from '../constants/Spacing';
 
 const BeltManager = ({ title, belts, setBelts, t }) => {
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
+
   const handleBeltChange = (index, value) => {
     const newBelts = [...belts];
     newBelts[index] = value;
     setBelts(newBelts);
   };
 
-  const handleAddBelt = () => {
-    setBelts([...belts, '']);
-  };
-
-  const handleRemoveBelt = (index) => {
-    const newBelts = belts.filter((_, i) => i !== index);
-    setBelts(newBelts);
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{title}</Text>
-      <View style={styles.beltsList}>
+      <Text style={[styles.title, { color: palette.textSecondary }]}>{title}</Text>
+      <View style={styles.list}>
         {belts.map((belt, index) => (
-          <View key={index} style={styles.beltItem}>
+          <View key={index} style={styles.row}>
             <TextInput
               placeholder={t('settings.belt_name')}
               value={belt}
               onChangeText={(text) => handleBeltChange(index, text)}
-              style={styles.beltInput}
-              placeholderTextColor="#9CA3AF"
+              style={[styles.input, { backgroundColor: palette.surfaceSunken, borderColor: palette.border, color: palette.text }]}
+              placeholderTextColor={palette.textTertiary}
             />
             <TouchableOpacity
-              style={styles.removeButton}
-              onPress={() => handleRemoveBelt(index)}
+              onPress={() => setBelts(belts.filter((_, i) => i !== index))}
+              hitSlop={8}
+              style={styles.removeBtn}
             >
-              <Ionicons name="trash" size={16} color="#EF4444" />
+              <Ionicons name="trash-outline" size={16} color={Brand.accent} />
             </TouchableOpacity>
           </View>
         ))}
       </View>
-      <TouchableOpacity style={styles.addBeltButton} onPress={handleAddBelt}>
-        <Ionicons name="add-circle" size={16} color="white" />
-        <Text style={styles.addBeltButtonText}>{t('settings.add_belt')}</Text>
+      <TouchableOpacity
+        style={[styles.addBtn, { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary }]}
+        onPress={() => setBelts([...belts, ''])}
+      >
+        <Ionicons name="add" size={16} color={Brand.primary} />
+        <Text style={[styles.addBtnText, { color: Brand.primary }]}>{t('settings.add_belt')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -50,52 +52,43 @@ const BeltManager = ({ title, belts, setBelts, t }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 24,
+    gap: 10,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 12,
+    ...Typography.smallMedium,
   },
-  beltsList: {
-    marginBottom: 12,
+  list: {
+    gap: 8,
   },
-  beltItem: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 8,
   },
-  beltInput: {
+  input: {
     flex: 1,
-    backgroundColor: '#374151',
     borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    padding: 12,
-    color: 'white',
-    marginRight: 8,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    ...Typography.body,
   },
-  removeButton: {
-    padding: 8,
+  removeBtn: {
+    padding: 4,
   },
-  addBeltButton: {
+  addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    gap: 6,
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: '#4B5563',
-    alignSelf: 'flex-start',
   },
-  addBeltButtonText: {
-    color: 'black',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
+  addBtnText: {
+    ...Typography.smallMedium,
   },
 });
 
-export default BeltManager; 
+export default BeltManager;

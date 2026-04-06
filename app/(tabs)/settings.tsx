@@ -5,150 +5,186 @@ import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View
 import BeltManager from '../../components/BeltManager';
 import { useAppContext } from '../../components/Localization';
 import NotificationSettings from '../../components/NotificationSettings';
+import { Button } from '../../components/ui/Button';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { SectionHeader } from '../../components/ui/SectionHeader';
+import { Brand, Colors } from '../../constants/Colors';
+import { BorderRadius, Spacing } from '../../constants/Spacing';
+import { Typography } from '../../constants/Typography';
+import { useColorScheme } from '../../hooks/useColorScheme';
 
-const defaultBelts = ["white", "blue", "purple", "brown", "black"];
-const defaultTechniqueCategories = ["Try Next Class", "Show Coach", "Favorite"];
-const fixedTechniqueCategories = ["Try Next Class"];
-const languages = [{value: "he", label: "עברית"}, {value: "en", label: "English"}];
+const defaultBelts = ['white', 'blue', 'purple', 'brown', 'black'];
+const defaultTechniqueCategories = ['Try Next Class', 'Show Coach', 'Favorite'];
+const fixedTechniqueCategories = ['Try Next Class'];
+const languages = [{ value: 'he', label: 'עברית' }, { value: 'en', label: 'English' }];
 
+/** Inline list manager for custom categories / belts */
 const ListManager = ({ title, placeholder, list, setList, t, fixedItems = [] }) => {
-  const handleItemChange = (index, value) => {
-    const newList = [...list];
-    newList[index] = value;
-    setList(newList);
-  };
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
 
-  const handleAddItem = () => {
-    setList([...list, '']);
-  };
-
-  const handleRemoveItem = (index) => {
-    const itemToRemove = list[index];
-    if (fixedItems.includes(itemToRemove)) return;
-    const newList = list.filter((_, i) => i !== index);
-    setList(newList);
-  };
-
-  const isItemFixed = (item) => fixedItems.includes(item);
+  const handleChange = (i, v) => { const n = [...list]; n[i] = v; setList(n); };
+  const isFixed = (item) => fixedItems.includes(item);
 
   return (
     <View style={styles.listManager}>
-      <Text style={styles.listManagerTitle}>{title}</Text>
-      <View style={styles.listManagerItems}>
-        {list.map((item, index) => (
-          <View key={index} style={styles.listManagerItem}>
-            <TextInput
-              placeholder={placeholder}
-              value={item}
-              onChangeText={(text) => handleItemChange(index, text)}
-              style={[styles.listManagerInput, isItemFixed(item) && styles.listManagerInputDisabled]}
-              editable={!isItemFixed(item)}
+      <Text style={[styles.listManagerTitle, { color: palette.textSecondary }]}>{title}</Text>
+      {list.map((item, i) => (
+        <View key={i} style={styles.listManagerRow}>
+          <TextInput
+            value={item}
+            onChangeText={(v) => handleChange(i, v)}
+            placeholder={placeholder}
+            placeholderTextColor={palette.textTertiary}
+            editable={!isFixed(item)}
+            style={[
+              styles.listManagerInput,
+              {
+                backgroundColor: palette.surfaceSunken,
+                borderColor: palette.border,
+                color: isFixed(item) ? palette.textTertiary : palette.text,
+              },
+            ]}
+          />
+          <TouchableOpacity
+            onPress={() => { if (!isFixed(item)) setList(list.filter((_, j) => j !== i)); }}
+            disabled={isFixed(item)}
+            style={styles.removeBtn}
+            hitSlop={8}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={16}
+              color={isFixed(item) ? palette.textTertiary : Brand.accent}
             />
-            <TouchableOpacity
-              style={[styles.removeButton, isItemFixed(item) && styles.removeButtonDisabled]}
-              onPress={() => handleRemoveItem(index)}
-              disabled={isItemFixed(item)}
-            >
-              <Ionicons name="trash" size={16} color={isItemFixed(item) ? '#6B7280' : '#EF4444'} />
-            </TouchableOpacity>
-          </View>
-        ))}
-      </View>
-      <TouchableOpacity style={styles.addItemButton} onPress={handleAddItem}>
-        <Ionicons name="add" size={16} color="white" />
-        <Text style={styles.addItemButtonText}>+ Add Item</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+      <TouchableOpacity
+        onPress={() => setList([...list, ''])}
+        style={[styles.addItemBtn, { borderColor: Brand.primary }]}
+      >
+        <Ionicons name="add" size={15} color={Brand.primary} />
+        <Text style={[styles.addItemText, { color: Brand.primary }]}>Add item</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
+/** Segmented control for 2–4 options */
+const SegmentedControl = ({ options, value, onChange, palette }) => (
+  <View style={[styles.segmented, { backgroundColor: palette.surfaceSunken, borderColor: palette.border }]}>
+    {options.map((opt) => (
+      <TouchableOpacity
+        key={opt.value}
+        style={[
+          styles.segment,
+          value === opt.value && { backgroundColor: Brand.primary },
+        ]}
+        onPress={() => onChange(opt.value)}
+      >
+        <Text
+          style={[
+            styles.segmentText,
+            { color: value === opt.value ? '#FFF' : palette.textSecondary },
+          ]}
+        >
+          {opt.label}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+);
+
+/** Card container for a settings group */
+const SettingsCard = ({ children, palette }) => (
+  <View
+    style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}
+  >
+    {children}
+  </View>
+);
+
+/** Single settings row with label + control on right */
+const SettingsRow = ({ label, description = null, control, palette, noBorder = false }) => (
+  <View style={[styles.settingsRow, !noBorder && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }]}>
+    <View style={styles.settingsRowLeft}>
+      <Text style={[styles.rowLabel, { color: palette.text }]}>{label}</Text>
+      {description && (
+        <Text style={[styles.rowDescription, { color: palette.textSecondary }]}>{description}</Text>
+      )}
+    </View>
+    <View style={styles.settingsRowRight}>{control}</View>
+  </View>
+);
+
 export default function Settings() {
   const { t, settings, updateSettings, user, isLoading: isAppLoading, getTextDirection } = useAppContext();
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
+
   const [formData, setFormData] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [customTrainingCategories, setCustomTrainingCategories] = useState([]);
-  const [customTechniqueCategories, setCustomTechniqueCategories] = useState([]);
-  const [customBelts, setCustomBelts] = useState([]);
-  const [visibleCategories, setVisibleCategories] = useState([]);
+  const [customTrainingCategories, setCustomTrainingCategories] = useState<string[]>([]);
+  const [customTechniqueCategories, setCustomTechniqueCategories] = useState<string[]>([]);
+  const [customBelts, setCustomBelts] = useState<string[]>([]);
+  const [visibleCategories, setVisibleCategories] = useState<string[]>([]);
 
   const getArray = (val) => {
     if (!val) return [];
     if (Array.isArray(val)) return val.filter(Boolean);
-    if (typeof val === 'string') return val.split(',').map(item => item.trim()).filter(Boolean);
+    if (typeof val === 'string') return val.split(',').map((s) => s.trim()).filter(Boolean);
     return [];
   };
 
   useEffect(() => {
     if (isAppLoading || !settings) return;
-
-    const initialFormData = { ...settings };
-    setCustomTrainingCategories(getArray(initialFormData.custom_training_categories));
-    const techniqueCategories = getArray(initialFormData.custom_technique_categories);
-    // Only add default categories if user has no custom categories, otherwise use what they have
-    if (techniqueCategories.length === 0) {
-      setCustomTechniqueCategories([...defaultTechniqueCategories]);
-    } else {
-      setCustomTechniqueCategories(techniqueCategories);
-    }
-    const belts = getArray(initialFormData.custom_belts);
+    const data = { ...settings };
+    setCustomTrainingCategories(getArray(data.custom_training_categories));
+    const techCats = getArray(data.custom_technique_categories);
+    setCustomTechniqueCategories(techCats.length > 0 ? techCats : [...defaultTechniqueCategories]);
+    const belts = getArray(data.custom_belts);
     setCustomBelts(belts.length > 0 ? belts : defaultBelts);
-    const visible = getArray(initialFormData.dashboard_visible_categories);
+    const visible = getArray(data.dashboard_visible_categories);
     setVisibleCategories(visible.length > 0 ? visible : ['Try Next Class']);
-    initialFormData.show_only_next_training_techniques = typeof initialFormData.show_only_next_training_techniques === 'boolean' ? initialFormData.show_only_next_training_techniques : initialFormData.show_only_next_training_techniques === 'true';
-    initialFormData.notifications_enabled = typeof initialFormData.notifications_enabled === 'boolean' ? initialFormData.notifications_enabled : initialFormData.notifications_enabled === 'true';
-    
-    // Ensure belt has a default value if not set
-    if (!initialFormData.belt) {
-      initialFormData.belt = defaultBelts[0]; // Set to first default belt
-    }
-    
-    // Ensure notification_minutes_before has a default value
-    if (!initialFormData.notification_minutes_before) {
-      initialFormData.notification_minutes_before = 10;
-    } else {
-      initialFormData.notification_minutes_before = parseInt(initialFormData.notification_minutes_before) || 10;
-    }
-    
-    setFormData(initialFormData);
+    data.show_only_next_training_techniques =
+      typeof data.show_only_next_training_techniques === 'boolean'
+        ? data.show_only_next_training_techniques
+        : data.show_only_next_training_techniques === 'true';
+    data.notifications_enabled =
+      typeof data.notifications_enabled === 'boolean'
+        ? data.notifications_enabled
+        : data.notifications_enabled === 'true';
+    if (!data.belt) data.belt = defaultBelts[0];
+    if (!data.notification_minutes_before) data.notification_minutes_before = 10;
+    else data.notification_minutes_before = parseInt(data.notification_minutes_before) || 10;
+    setFormData(data);
   }, [settings, isAppLoading]);
 
-  const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+  const handleChange = (field, value) => setFormData((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = async () => {
     setIsSaving(true);
     setSuccessMessage('');
-    
-    // Ensure notification_minutes_before has a valid default value
-    const notificationMinutes = formData.notification_minutes_before || 10;
-    
-    const settingsPayload = {
+    const payload = {
       belt: formData.belt,
       language: formData.language,
       time_format: formData.time_format,
-      custom_training_categories: customTrainingCategories.filter(c => c && c.trim() !== '').join(', '),
-      custom_technique_categories: customTechniqueCategories.filter(c => c && c.trim() !== '').join(', '),
-      custom_belts: customBelts.filter(b => b && b.trim() !== '').join(', '),
+      custom_training_categories: customTrainingCategories.filter((c) => c?.trim()).join(', '),
+      custom_technique_categories: customTechniqueCategories.filter((c) => c?.trim()).join(', '),
+      custom_belts: customBelts.filter((b) => b?.trim()).join(', '),
       dashboard_visible_categories: visibleCategories.join(', '),
       show_only_next_training_techniques: String(formData.show_only_next_training_techniques),
       notifications_enabled: String(formData.notifications_enabled),
-      notification_minutes_before: String(notificationMinutes),
+      notification_minutes_before: String(formData.notification_minutes_before || 10),
     };
-    
-    console.log('Saving settings with notification settings:');
-    console.log('- Notifications enabled:', formData.notifications_enabled);
-    console.log('- Minutes before:', notificationMinutes);
-    console.log('Full settings payload:', settingsPayload);
-
     try {
-      await updateSettings(settingsPayload);
+      await updateSettings(payload);
       setSuccessMessage(t('settings.changes_saved'));
       setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error("Failed to save settings", error);
-      setSuccessMessage('');
+    } catch (e) {
+      console.error('Failed to save settings', e);
     } finally {
       setIsSaving(false);
     }
@@ -156,554 +192,291 @@ export default function Settings() {
 
   if (isAppLoading || !formData) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loader, { backgroundColor: palette.background }]}>
+        <Text style={[styles.loaderText, { color: palette.textSecondary }]}>Loading…</Text>
       </View>
     );
   }
 
-  const validCustomBelts = customBelts.filter(belt => belt && belt.trim() !== '');
+  const validBelts = customBelts.filter((b) => b?.trim());
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <View style={[styles.header, { writingDirection: getTextDirection() }]}>
-          <Text style={styles.title}>{t('settings.title')}</Text>
-          <Text style={styles.subtitle}>{t('settings.subtitle')}</Text>
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>
-              Version {Constants.expoConfig?.version || '1.0.0'} (Build {Constants.expoConfig?.android?.versionCode || '1'})
-            </Text>
-          </View>
+    <ScrollView
+      style={[styles.screen, { backgroundColor: palette.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      <ScreenHeader
+        title={t('settings.title') || 'Settings'}
+        subtitle={
+          `Version ${Constants.expoConfig?.version || '1.0.0'} · Build ${Constants.expoConfig?.android?.versionCode || '1'}`
+        }
+      />
+
+      {/* ── Profile ────────────────────────────────── */}
+      <View style={styles.section}>
+        <SectionHeader title={t('settings.profile_details') || 'Profile'} style={styles.sectionHeader} />
+        <SettingsCard palette={palette}>
+          <SettingsRow
+            label={t('settings.name') || 'Name'}
+            control={<Text style={[styles.readValue, { color: palette.textSecondary }]}>{user?.full_name}</Text>}
+            palette={palette}
+          />
+          <SettingsRow
+            label={t('settings.email') || 'Email'}
+            control={<Text style={[styles.readValue, { color: palette.textSecondary }]}>{user?.email}</Text>}
+            palette={palette}
+            noBorder
+          />
+        </SettingsCard>
+      </View>
+
+      {/* ── Belt ───────────────────────────────────── */}
+      <View style={styles.section}>
+        <SectionHeader title={t('settings.belt') || 'Belt'} style={styles.sectionHeader} />
+        <View style={styles.beltRow}>
+          {validBelts.map((belt) => (
+            <TouchableOpacity
+              key={belt}
+              style={[
+                styles.beltPill,
+                { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+                formData.belt === belt && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+              ]}
+              onPress={() => handleChange('belt', belt)}
+            >
+              <Text
+                style={[
+                  styles.beltText,
+                  { color: formData.belt === belt ? Brand.primary : palette.textSecondary },
+                ]}
+              >
+                {belt}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+      </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{t('settings.profile_details')}</Text>
+      {/* ── App Preferences ────────────────────────── */}
+      <View style={styles.section}>
+        <SectionHeader title={t('settings.app_preferences') || 'Preferences'} style={styles.sectionHeader} />
+        <SettingsCard palette={palette}>
+          <View style={styles.settingsRow}>
+            <Text style={[styles.rowLabel, { color: palette.text }]}>{t('settings.language') || 'Language'}</Text>
+            <SegmentedControl
+              options={languages}
+              value={formData.language}
+              onChange={(v) => handleChange('language', v)}
+              palette={palette}
+            />
           </View>
-          <View style={styles.cardContent}>
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
-                <Text style={styles.label}>{t('settings.name')}</Text>
-                <View style={styles.readOnlyField}>
-                  <Text style={styles.readOnlyText}>{user?.full_name}</Text>
-                </View>
-              </View>
-              <View style={styles.formField}>
-                <Text style={styles.label}>{t('settings.email')}</Text>
-                <View style={styles.readOnlyField}>
-                  <Text style={styles.readOnlyText}>{user?.email}</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.formField}>
-              <Text style={styles.label}>{t('settings.belt')}</Text>
-              <View style={styles.pickerContainer}>
-                {validCustomBelts.map(belt => (
-                  <TouchableOpacity
-                    key={belt}
-                    style={[styles.pickerOption, formData.belt === belt && styles.pickerOptionSelected]}
-                    onPress={() => handleChange('belt', belt)}
-                  >
-                    <Text style={[styles.pickerOptionText, formData.belt === belt && styles.pickerOptionTextSelected]}>
-                      {belt}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+          <View style={styles.settingsRow}>
+            <Text style={[styles.rowLabel, { color: palette.text }]}>{t('settings.time_format') || 'Time format'}</Text>
+            <SegmentedControl
+              options={[{ value: '24h', label: '24h' }, { value: '12h', label: '12h' }]}
+              value={formData.time_format}
+              onChange={(v) => handleChange('time_format', v)}
+              palette={palette}
+            />
           </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{t('settings.app_preferences')}</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <View style={styles.formField}>
-              <Text style={styles.label}>{t('settings.language')}</Text>
-              <View style={styles.pickerContainer}>
-                {languages.map(lang => (
-                  <TouchableOpacity
-                    key={lang.value}
-                    style={[styles.pickerOption, formData.language === lang.value && styles.pickerOptionSelected]}
-                    onPress={() => handleChange('language', lang.value)}
-                  >
-                    <Text style={[styles.pickerOptionText, formData.language === lang.value && styles.pickerOptionTextSelected]}>
-                      {lang.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.label}>{t('settings.time_format')}</Text>
-              <View style={styles.pickerContainer}>
-                <TouchableOpacity
-                  style={[styles.pickerOption, formData.time_format === '24h' && styles.pickerOptionSelected]}
-                  onPress={() => handleChange('time_format', '24h')}
-                >
-                  <Text style={[styles.pickerOptionText, formData.time_format === '24h' && styles.pickerOptionTextSelected]}>
-                    {t('settings.24h')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.pickerOption, formData.time_format === '12h' && styles.pickerOptionSelected]}
-                  onPress={() => handleChange('time_format', '12h')}
-                >
-                  <Text style={[styles.pickerOptionText, formData.time_format === '12h' && styles.pickerOptionTextSelected]}>
-                    {t('settings.12h')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.switchField}>
-              <View style={styles.switchLabel}>
-                <Text style={styles.switchTitle}>{t('settings.show_only_next_training')}</Text>
-                <Text style={styles.switchDescription}>{t('settings.show_only_next_training_description')}</Text>
-              </View>
+          <SettingsRow
+            label={t('settings.show_only_next_training') || 'Next training only'}
+            description={t('settings.show_only_next_training_description') || 'Show techniques for your next scheduled session'}
+            control={
               <Switch
                 value={formData.show_only_next_training_techniques}
-                onValueChange={(value) => handleChange('show_only_next_training_techniques', value)}
-                trackColor={{ false: '#374151', true: '#3B82F6' }}
-                thumbColor={formData.show_only_next_training_techniques ? '#FFFFFF' : '#9CA3AF'}
+                onValueChange={(v) => handleChange('show_only_next_training_techniques', v)}
+                trackColor={{ false: palette.border, true: Brand.primary }}
+                thumbColor="#FFFFFF"
               />
-            </View>
-          </View>
-        </View>
+            }
+            palette={palette}
+            noBorder
+          />
+        </SettingsCard>
+      </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{t('settings.dashboard_categories_title')}</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardDescription}>{t('settings.dashboard_categories_description')}</Text>
-            {customTechniqueCategories.map(cat => (
-              <View key={cat} style={styles.categoryItem}>
-                <TouchableOpacity
-                  style={[styles.checkbox, visibleCategories.includes(cat) && styles.checkboxChecked]}
-                  onPress={() => {
-                    setVisibleCategories(prev => 
-                      visibleCategories.includes(cat) 
-                        ? prev.filter(c => c !== cat) 
-                        : [...prev, cat]
-                    );
-                  }}
-                >
-                  {visibleCategories.includes(cat) && (
-                    <Ionicons name="checkmark" size={16} color="white" />
-                  )}
-                </TouchableOpacity>
-                <Text style={styles.categoryLabel}>
-                  {cat}
-                  {fixedTechniqueCategories.includes(cat) && (
-                    <Text style={styles.fixedCategoryText}> (Fixed)</Text>
-                  )}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-
-
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{t('settings.customization')}</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <ListManager
-              title={t('settings.custom_technique_categories')}
-              placeholder={t('settings.category_name')}
-              list={customTechniqueCategories}
-              setList={setCustomTechniqueCategories}
-              fixedItems={defaultTechniqueCategories}
-              t={t}
+      {/* ── Dashboard categories ───────────────────── */}
+      <View style={styles.section}>
+        <SectionHeader title={t('settings.dashboard_categories_title') || 'Visible categories'} style={styles.sectionHeader} />
+        <SettingsCard palette={palette}>
+          {customTechniqueCategories.map((cat, i) => (
+            <SettingsRow
+              key={cat}
+              label={cat}
+              control={
+                <Switch
+                  value={visibleCategories.includes(cat)}
+                  onValueChange={(v) =>
+                    setVisibleCategories((prev) =>
+                      v ? [...prev, cat] : prev.filter((c) => c !== cat)
+                    )
+                  }
+                  trackColor={{ false: palette.border, true: Brand.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              }
+              palette={palette}
+              noBorder={i === customTechniqueCategories.length - 1}
             />
-            <ListManager
-              title={t('settings.custom_training_categories')}
-              placeholder={t('settings.category_name')}
-              list={customTrainingCategories}
-              setList={setCustomTrainingCategories}
-              t={t}
-            />
-            <BeltManager
-              title={t('settings.custom_belts')}
-              belts={customBelts}
-              setBelts={setCustomBelts}
-              t={t}
-            />
-          </View>
-        </View>
+          ))}
+        </SettingsCard>
+      </View>
 
+      {/* ── Notifications ──────────────────────────── */}
+      <View style={styles.section}>
+        <SectionHeader title={t('settings.notifications') || 'Notifications'} style={styles.sectionHeader} />
         <NotificationSettings formData={formData} handleChange={handleChange} />
+      </View>
 
-        <View style={styles.cardFooter}>
-          {successMessage && (
-            <View style={styles.successAlert}>
-              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.successText}>{successMessage}</Text>
-            </View>
-          )}
-          <TouchableOpacity style={styles.saveButton} onPress={handleSubmit} disabled={isSaving}>
-            <Text style={styles.saveButtonText}>
-              {isSaving ? t('general.saving') : t('settings.save_changes')}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      {/* ── Customization ─────────────────────────── */}
+      <View style={styles.section}>
+        <SectionHeader title={t('settings.customization') || 'Customization'} style={styles.sectionHeader} />
+        <SettingsCard palette={palette}>
+          <ListManager
+            title={t('settings.custom_technique_categories') || 'Technique categories'}
+            placeholder={t('settings.category_name') || 'Category name'}
+            list={customTechniqueCategories}
+            setList={setCustomTechniqueCategories}
+            fixedItems={defaultTechniqueCategories}
+            t={t}
+          />
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
+          <ListManager
+            title={t('settings.custom_training_categories') || 'Training categories'}
+            placeholder={t('settings.category_name') || 'Category name'}
+            list={customTrainingCategories}
+            setList={setCustomTrainingCategories}
+            t={t}
+          />
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
+          <BeltManager
+            title={t('settings.custom_belts') || 'Belt ranks'}
+            belts={customBelts}
+            setBelts={setCustomBelts}
+            t={t}
+          />
+        </SettingsCard>
+      </View>
+
+      {/* ── Save ───────────────────────────────────── */}
+      <View style={styles.saveSection}>
+        {!!successMessage && (
+          <View style={[styles.successBanner, { backgroundColor: Brand.successMuted }]}>
+            <Ionicons name="checkmark-circle" size={16} color={Brand.success} />
+            <Text style={[styles.successText, { color: Brand.success }]}>{successMessage}</Text>
+          </View>
+        )}
+        <Button
+          label={isSaving ? (t('general.saving') || 'Saving…') : (t('settings.save_changes') || 'Save Changes')}
+          variant="primary"
+          size="lg"
+          fullWidth
+          loading={isSaving}
+          onPress={handleSubmit}
+        />
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#111827',
-  },
+  screen: { flex: 1 },
   content: {
-    padding: 16,
+    paddingHorizontal: Spacing.screenPaddingH,
+    paddingTop: Spacing.screenPaddingV,
+    paddingBottom: 48,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: 'white',
-    fontSize: 16,
-  },
-  header: {
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
-  },
-  subtitle: {
-    color: '#9CA3AF',
-  },
-  versionContainer: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#374151',
-  },
-  versionText: {
-    color: '#6B7280',
-    fontSize: 12,
-    fontFamily: 'monospace',
-  },
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loaderText: { ...Typography.body },
+
+  section: { marginBottom: 24 },
+  sectionHeader: { marginBottom: 10 },
+
   card: {
-    backgroundColor: '#1F2937',
     borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-    marginBottom: 16,
+    borderRadius: BorderRadius.card,
+    overflow: 'hidden',
   },
-  cardHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cardContent: {
-    padding: 16,
-  },
-  cardDescription: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  formRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  formField: {
-    flex: 1,
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 8,
-  },
-  readOnlyField: {
-    backgroundColor: '#374151',
-    padding: 12,
-    borderRadius: 6,
-  },
-  readOnlyText: {
-    color: 'white',
-    fontSize: 14,
-  },
-  pickerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  pickerOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#374151',
-    borderWidth: 1,
-    borderColor: '#4B5563',
-  },
-  pickerOptionSelected: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
-  },
-  pickerOptionText: {
-    color: '#D1D5DB',
-    fontSize: 14,
-  },
-  pickerOptionTextSelected: {
-    color: 'white',
-  },
-  switchField: {
+  settingsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  switchLabel: {
-    flex: 1,
-  },
-  switchTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 4,
-  },
-  switchDescription: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  categoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#4B5563',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
-  },
-  categoryLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: 'white',
-  },
-  fixedCategoryText: {
-    fontSize: 12,
-    color: '#60A5FA',
-  },
-  listManager: {
-    marginBottom: 24,
-  },
-  listManagerTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 12,
-  },
-  listManagerItems: {
-    marginBottom: 12,
-  },
-  listManagerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  listManagerInput: {
-    flex: 1,
-    backgroundColor: '#374151',
-    borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    padding: 12,
-    color: 'white',
-    marginRight: 8,
-  },
-  listManagerInputDisabled: {
-    opacity: 0.5,
-  },
-  removeButton: {
-    padding: 8,
-  },
-  removeButtonDisabled: {
-    opacity: 0.5,
-  },
-  addItemButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#4B5563',
-    alignSelf: 'flex-start',
-  },
-  addItemButtonText: {
-    color: 'black',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  alertContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: '#DC2626',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-  },
-  alertContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  alertText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  alertTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FCA5A5',
-    marginBottom: 8,
-  },
-  alertDescription: {
-    fontSize: 14,
-    color: '#FCA5A5',
-    marginBottom: 8,
-  },
-  alertHint: {
-    fontSize: 12,
-    color: '#F87171',
-    marginBottom: 16,
-  },
-  alertButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  alertButton: {
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  alertButtonText: {
-    color: 'black',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#4B5563',
-    alignSelf: 'flex-start',
-  },
-  testButtonText: {
-    color: 'black',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  enableButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#4B5563',
-  },
-  enableButtonText: {
-    color: 'black',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  cardFooter: {
-    alignItems: 'flex-end',
-    gap: 16,
-  },
-  successAlert: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1,
-    borderColor: '#10B981',
-    borderRadius: 8,
-    padding: 12,
-    width: '100%',
-  },
-  successText: {
-    color: '#10B981',
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  saveButton: {
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 24,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 8,
+    gap: 12,
   },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  categoriesGrid: {
+  settingsRowLeft: { flex: 1 },
+  settingsRowRight: {},
+  rowLabel: { ...Typography.bodyMedium },
+  rowDescription: { ...Typography.caption, marginTop: 2, lineHeight: 16 },
+  readValue: { ...Typography.body },
+  divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 14 },
+
+  // Belt picker
+  beltRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
   },
-  categoryBadge: {
-    backgroundColor: '#374151',
+  beltPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  beltText: { ...Typography.smallMedium, textTransform: 'capitalize' },
+
+  // Segmented control
+  segmented: {
+    flexDirection: 'row',
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  segment: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: BorderRadius.full,
+  },
+  segmentText: { ...Typography.smallMedium },
+
+  // List manager
+  listManager: { padding: 14, gap: 8 },
+  listManagerTitle: { ...Typography.captionMedium, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
+  listManagerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  listManagerInput: {
+    flex: 1,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderRadius: BorderRadius.input,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    ...Typography.body,
   },
-  categoryBadgeText: {
-    color: '#D1D5DB',
-    fontSize: 14,
-    fontWeight: '500',
+  removeBtn: { padding: 4 },
+  addItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    alignSelf: 'flex-start',
+    marginTop: 4,
   },
-}); 
+  addItemText: { ...Typography.smallMedium },
+
+  // Save section
+  saveSection: { gap: 12 },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+  },
+  successText: { ...Typography.bodyMedium },
+});

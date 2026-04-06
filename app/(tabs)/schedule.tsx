@@ -6,7 +6,15 @@ import { useAppContext } from '../../components/Localization';
 import { useNotificationScheduler } from '../../components/NotificationScheduler';
 import SubscriptionGuard from '../../components/SubscriptionGuard';
 import TrainingFormModal from '../../components/TrainingFormModal';
-import { formatTime, getTrainingCategoryColor } from '../../utils/formatters';
+import { Button } from '../../components/ui/Button';
+import { CategoryBadge } from '../../components/ui/CategoryBadge';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { Brand, Colors, TrainingCategoryColors } from '../../constants/Colors';
+import { BorderRadius, Spacing } from '../../constants/Spacing';
+import { Typography } from '../../constants/Typography';
+import { useColorScheme } from '../../hooks/useColorScheme';
+import { formatTime } from '../../utils/formatters';
 
 interface Training {
   id: string;
@@ -22,83 +30,60 @@ interface Training {
   is_sample?: boolean | null;
 }
 
-const daysOfWeek = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
-const daysOfWeekEn = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const defaultTrainingCategories = ["gi", "no_gi", "competition", "beginner", "advanced", "open_mat"];
+const daysOfWeek = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const daysOfWeekEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function Schedule() {
   const { t, language, settings, user, isLoading: isAppLoading } = useAppContext();
   const { scheduleReminders } = useNotificationScheduler();
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
+
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const currentDaysOfWeek = language === 'he' ? daysOfWeek : daysOfWeekEn;
   const [editingTraining, setEditingTraining] = useState<Training | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const currentDaysOfWeek = language === 'he' ? daysOfWeek : daysOfWeekEn;
 
   const loadTrainings = async () => {
     if (!user) return;
     setIsLoading(true);
     try {
-      console.log('Loading trainings for user:', user.email);
-      // Filter trainings by the current user
       const data = await TrainingEntity.filter({ created_by: user.email });
-      console.log('Loaded trainings:', data.length);
-      console.log('Loaded training IDs:', data.map(t => t.id));
       data.sort((a, b) => {
-        const aIndex = currentDaysOfWeek.indexOf(a.dayOfWeek);
-        const bIndex = currentDaysOfWeek.indexOf(b.dayOfWeek);
-        if (aIndex === -1) return 1;
-        if (bIndex === -1) return -1;
-        return aIndex - bIndex;
+        const ai = currentDaysOfWeek.indexOf(a.dayOfWeek);
+        const bi = currentDaysOfWeek.indexOf(b.dayOfWeek);
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
       });
-      console.log('Setting trainings state with:', data.length, 'trainings');
       setTrainings(data);
     } catch (error) {
-      console.error("Failed to load trainings:", error);
+      console.error('Failed to load trainings:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!isAppLoading && user) {
-      loadTrainings();
-    }
+    if (!isAppLoading && user) loadTrainings();
   }, [user, isAppLoading, language]);
-
-  const handleOpenEditDialog = (training: Training) => {
-    setEditingTraining(training);
-    setIsModalOpen(true);
-  };
-
-  const handleOpenAddDialog = () => {
-    setEditingTraining(null);
-    setIsModalOpen(true);
-  };
 
   const handleSaveTraining = async (formData: any) => {
     try {
-      const trainingData = {
-        ...formData,
-        created_by: user?.email || 'user@example.com'
-      };
-      
+      const trainingData = { ...formData, created_by: user?.email || '' };
       if (editingTraining) {
         await TrainingEntity.update(editingTraining.id, trainingData);
       } else {
         await TrainingEntity.create(trainingData);
       }
-      
-      // Schedule notifications for the updated trainings
       if (user?.notifications_enabled === 'true') {
-        const updatedTrainings = await TrainingEntity.filter({ created_by: user.email });
+        const updated = await TrainingEntity.filter({ created_by: user.email });
         const techniques = await Technique.filter({ created_by: user.email });
-        await scheduleReminders(techniques, updatedTrainings);
+        await scheduleReminders(techniques, updated);
       }
-      
-      Alert.alert('Success', editingTraining ? 'Training updated successfully!' : 'Training added successfully!');
     } catch (error) {
-      console.error("Failed to save training:", error);
       Alert.alert('Error', 'Failed to save training. Please try again.');
     } finally {
       setIsModalOpen(false);
@@ -106,284 +91,223 @@ export default function Schedule() {
     }
   };
 
-  const handleDeleteTraining = async (id: string) => {
-    console.log('=== DELETE TRAINING DEBUG ===');
-    console.log('Attempting to delete training with ID:', id);
-    console.log('Current trainings count:', trainings.length);
-    console.log('Current trainings:', trainings.map(t => ({ id: t.id, dayOfWeek: t.dayOfWeek, created_by: t.created_by })));
-    
-    // Show confirmation dialog before deleting
-    Alert.alert(
-      'Delete Training',
-      'Are you sure you want to delete this training? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('Direct delete for training ID:', id);
-              console.log('Training entity:', TrainingEntity);
-              const result = await TrainingEntity.delete(id);
-              console.log('Delete result:', result);
-              
-              // Reschedule notifications after deleting training
-              if (user?.notifications_enabled === 'true') {
-                const updatedTrainings = await TrainingEntity.filter({ created_by: user.email });
-                const techniques = await Technique.filter({ created_by: user.email });
-                await scheduleReminders(techniques, updatedTrainings);
-              }
-              
-              Alert.alert('Success', 'Training deleted successfully!');
-            } catch (error: any) {
-              console.error("Failed to delete training:", error);
-              console.error("Error details:", error.message);
-              Alert.alert('Error', `Failed to delete training: ${error.message}`);
-            } finally {
-              console.log('Reloading trainings...');
-              loadTrainings();
+  const handleDeleteTraining = (id: string) => {
+    Alert.alert('Delete Training', 'Are you sure you want to delete this training?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await TrainingEntity.delete(id);
+            if (user?.notifications_enabled === 'true') {
+              const updated = await TrainingEntity.filter({ created_by: user.email });
+              const techniques = await Technique.filter({ created_by: user.email });
+              await scheduleReminders(techniques, updated);
             }
+          } catch (error: any) {
+            Alert.alert('Error', `Failed to delete training: ${error.message}`);
+          } finally {
+            loadTrainings();
           }
-        }
-      ]
-    );
+        },
+      },
+    ]);
   };
 
-  const getArray = (val: any) => {
-    if (!val) return [];
-    if (Array.isArray(val)) return val.filter(Boolean);
-    if (typeof val === 'string') return val.split(',').filter(Boolean);
-    return [];
+  const getCategoryAccent = (category: string): string => {
+    const colors = TrainingCategoryColors[category as keyof typeof TrainingCategoryColors]
+      ?? TrainingCategoryColors.default;
+    return colors.text;
   };
-
-  const validCustomCategories = getArray(settings.custom_training_categories);
-  const allTrainingCategories = [...new Set([...defaultTrainingCategories, ...validCustomCategories])];
 
   return (
     <SubscriptionGuard requiredLevel="free">
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>My Training Schedule</Text>
-              <Text style={styles.subtitle}>Add your regular training times to get reminders</Text>
-            </View>
-            <TouchableOpacity style={styles.addButton} onPress={handleOpenAddDialog}>
-              <Ionicons name="add" size={16} color="white" />
-              <Text style={styles.addButtonText}>Add New Training</Text>
-            </TouchableOpacity>
+      <ScrollView
+        style={[styles.container, { backgroundColor: palette.background }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <ScreenHeader
+          title={t('schedule.title') || 'My Schedule'}
+          subtitle={t('schedule.subtitle') || 'Add regular training times to get reminders'}
+          right={
+            <Button
+              label={t('schedule.add_new_training') || 'Add Training'}
+              icon="add"
+              variant="primary"
+              size="sm"
+              onPress={() => { setEditingTraining(null); setIsModalOpen(true); }}
+            />
+          }
+        />
+
+        <TrainingFormModal
+          visible={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveTraining}
+          training={editingTraining}
+        />
+
+        {isLoading ? (
+          <View style={styles.skeletons}>
+            {[0, 1, 2].map((i) => (
+              <View
+                key={i}
+                style={[styles.skeletonCard, { backgroundColor: palette.surface, borderColor: palette.border }]}
+              />
+            ))}
           </View>
-
-          <TrainingFormModal
-            visible={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
-            onSave={handleSaveTraining}
-            training={editingTraining}
+        ) : trainings.length === 0 ? (
+          <EmptyState
+            variant="schedule"
+            onCta={() => { setEditingTraining(null); setIsModalOpen(true); }}
+            ctaLabel={t('schedule.add_new_training') || 'Add Training'}
           />
+        ) : (
+          <View style={styles.list}>
+            {trainings.map((training) => {
+              const accent = getCategoryAccent(training.category);
+              return (
+                <View
+                  key={training.id}
+                  style={[
+                    styles.trainingCard,
+                    { backgroundColor: palette.surface, borderColor: palette.border },
+                  ]}
+                >
+                  {/* Left accent bar */}
+                  <View style={[styles.accentBar, { backgroundColor: accent }]} />
 
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>My Trainings</Text>
-            </View>
-            <View style={styles.cardContent}>
-              {isLoading ? (
-                <View style={styles.loadingContainer}>
-                  <Text style={styles.loadingText}>Loading...</Text>
-                </View>
-              ) : trainings.length > 0 ? (
-                <View style={styles.trainingsList}>
-                  {trainings.map(training => (
-                    <View key={training.id} style={styles.trainingCard}>
-                      <View style={styles.trainingContent}>
-                        <View style={styles.trainingInfo}>
-                          <View style={styles.trainingHeader}>
-                            <Ionicons name="time" size={16} color="#60A5FA" />
-                            <Text style={styles.trainingTime}>
-                              {training.dayOfWeek} at {formatTime(training.time, settings.time_format)}
-                            </Text>
-                          </View>
-                          <View style={styles.trainingBadges}>
-                            <View style={[styles.badge, getTrainingCategoryColor(training.category)]}>
-                              <Text style={[styles.badgeText, { color: (getTrainingCategoryColor(training.category) as any).color }]}>
-                                {training.category}
-                              </Text>
-                            </View>
-                          </View>
-                          {training.location && (
-                            <View style={styles.trainingDetail}>
-                              <Ionicons name="location" size={16} color="#9CA3AF" />
-                              <Text style={styles.detailText}>{training.location}</Text>
-                            </View>
-                          )}
-                          {training.instructor && (
-                            <View style={styles.trainingDetail}>
-                              <Ionicons name="person" size={16} color="#9CA3AF" />
-                              <Text style={styles.detailText}>{training.instructor}</Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles.trainingActions}>
-                          <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => handleOpenEditDialog(training)}
-                          >
-                            <Ionicons name="create" size={20} color="#60A5FA" />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => {
-                              console.log('Delete button pressed for training:', training.id);
-                              console.log('Training details:', training);
-                              // Test direct delete without Alert
-                              handleDeleteTraining(training.id);
-                            }}
-                          >
-                            <Ionicons name="trash" size={20} color="#EF4444" />
-                          </TouchableOpacity>
-                        </View>
+                  <View style={styles.cardBody}>
+                    {/* Day + Time */}
+                    <View style={styles.cardTop}>
+                      <View style={styles.timeBlock}>
+                        <Text style={[styles.dayLabel, { color: accent }]}>
+                          {training.dayOfWeek}
+                        </Text>
+                        <Text style={[styles.timeLabel, { color: palette.text }]}>
+                          {formatTime(training.time, settings.time_format)}
+                        </Text>
+                      </View>
+
+                      {/* Actions */}
+                      <View style={styles.actions}>
+                        <TouchableOpacity
+                          style={[styles.actionBtn, { backgroundColor: palette.surfaceSunken }]}
+                          onPress={() => { setEditingTraining(training); setIsModalOpen(true); }}
+                          hitSlop={8}
+                        >
+                          <Ionicons name="create-outline" size={16} color={Brand.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionBtn, { backgroundColor: palette.surfaceSunken }]}
+                          onPress={() => handleDeleteTraining(training.id)}
+                          hitSlop={8}
+                        >
+                          <Ionicons name="trash-outline" size={16} color={Brand.accent} />
+                        </TouchableOpacity>
                       </View>
                     </View>
-                  ))}
+
+                    {/* Category + meta */}
+                    <View style={styles.cardMeta}>
+                      <CategoryBadge category={training.category} compact />
+                      {training.location && (
+                        <View style={styles.metaRow}>
+                          <Ionicons name="location-outline" size={13} color={palette.textSecondary} />
+                          <Text style={[styles.metaText, { color: palette.textSecondary }]}>
+                            {training.location}
+                          </Text>
+                        </View>
+                      )}
+                      {training.instructor && (
+                        <View style={styles.metaRow}>
+                          <Ionicons name="person-outline" size={13} color={palette.textSecondary} />
+                          <Text style={[styles.metaText, { color: palette.textSecondary }]}>
+                            {training.instructor}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
                 </View>
-              ) : (
-                <Text style={styles.emptyText}>No trainings scheduled</Text>
-              )}
-            </View>
+              );
+            })}
           </View>
-        </View>
+        )}
       </ScrollView>
     </SubscriptionGuard>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#111827',
-  },
+  container: { flex: 1 },
   content: {
-    padding: 16,
+    paddingHorizontal: Spacing.screenPaddingH,
+    paddingTop: Spacing.screenPaddingV,
+    paddingBottom: 32,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
-  },
-  subtitle: {
-    color: '#9CA3AF',
-  },
-  addButton: {
-    backgroundColor: '#2563EB',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 120,
-  },
-  addButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  card: {
-    backgroundColor: '#1F2937',
+  list: { gap: Spacing.itemGap },
+  skeletons: { gap: Spacing.itemGap },
+  skeletonCard: {
+    height: 100,
+    borderRadius: BorderRadius.card,
     borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-  },
-  cardHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-  },
-  cardContent: {
-    padding: 16,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  loadingText: {
-    color: '#9CA3AF',
-    fontSize: 16,
-  },
-  trainingsList: {
-    gap: 16,
   },
   trainingCard: {
-    backgroundColor: 'rgba(55, 65, 81, 0.5)',
+    borderRadius: BorderRadius.card,
     borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 8,
+    flexDirection: 'row',
+    overflow: 'hidden',
   },
-  trainingContent: {
-    padding: 16,
+  accentBar: {
+    width: 4,
+  },
+  cardBody: {
+    flex: 1,
+    padding: 14,
+    gap: 10,
+  },
+  cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  trainingInfo: {
-    flex: 1,
+  timeBlock: {
+    gap: 2,
   },
-  trainingHeader: {
+  dayLabel: {
+    ...Typography.captionMedium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  timeLabel: {
+    ...Typography.title,
+  },
+  actions: {
     flexDirection: 'row',
+    gap: 6,
+  },
+  actionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
   },
-  trainingTime: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: 'white',
-    marginLeft: 8,
-  },
-  trainingBadges: {
+  cardMeta: {
     flexDirection: 'row',
-    marginBottom: 8,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  trainingDetail: {
-    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    marginBottom: 4,
-  },
-  detailText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  trainingActions: {
-    flexDirection: 'row',
     gap: 8,
   },
-  actionButton: {
-    padding: 8,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  emptyText: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 16,
+  metaText: {
+    ...Typography.caption,
   },
-}); 
+});

@@ -1,260 +1,189 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getTechniqueCategoryColor, parseArray } from '../../utils/formatters';
-import { extractThumbnailFromUrl } from '../../utils/thumbnailExtractor';
-import { useAppContext } from '../Localization';
+import React, { useRef } from 'react';
+import { Alert, Animated, Dimensions, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Brand, Colors } from '../../constants/Colors';
+import { Typography } from '../../constants/Typography';
+import { BorderRadius, Spacing } from '../../constants/Spacing';
+import { Shadows } from '../../constants/Shadows';
+import { useColorScheme } from '../../hooks/useColorScheme';
+import { CategoryBadge } from '../ui/CategoryBadge';
 import PlatformIcon from '../PlatformIcon';
+import { extractThumbnailFromUrl } from '../../utils/thumbnailExtractor';
+import { parseArray } from '../../utils/formatters';
+import { useAppContext } from '../Localization';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const GRID_GAP = 12;
+const CARD_WIDTH = (SCREEN_WIDTH - Spacing.screenPaddingH * 2 - GRID_GAP) / 2;
+const THUMBNAIL_HEIGHT = CARD_WIDTH * 0.62; // slightly taller ratio for grid
 
 const TechniqueGridItem = ({ technique, trainings, onDelete, onUpdate }) => {
-  const { t, settings } = useAppContext();
-  const [imageError, setImageError] = useState(false);
+  const { t } = useAppContext();
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
 
-  const thumbnailUrl = imageError ? null : extractThumbnailFromUrl(technique.video_url);
+  const scale = useRef(new Animated.Value(1)).current;
 
-  const handleImageError = () => {
-    setImageError(true);
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
   };
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+  };
+
+  const thumbnailUrl = extractThumbnailFromUrl(technique.video_url);
+  const categories = parseArray(technique.category);
 
   const handleVideoPress = () => {
     if (technique.video_url) {
-      Linking.openURL(technique.video_url).catch(err => {
-        console.error('Error opening video URL:', err);
-        Alert.alert('Error', 'Could not open video link');
-      });
+      Linking.openURL(technique.video_url).catch(() =>
+        Alert.alert('Error', 'Could not open video link')
+      );
     }
   };
 
-  const getCategoryColor = (category) => {
-    return getTechniqueCategoryColor(category);
+  const handleEdit = () => {
+    router.push(`/technique-form?techniqueId=${technique.id}`);
   };
 
   const handleDelete = () => {
     Alert.alert(
       t('technique.delete_title'),
       t('technique.delete_message'),
-              [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete(technique.id)
-        }
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => onDelete(technique.id) },
       ]
     );
   };
 
-  const handleEdit = () => {
-    // Navigate to edit form with technique ID
-    router.push(`/technique-form?techniqueId=${technique.id}`);
-  };
-
-  const categories = parseArray(technique.category);
-
-  const getTrainingDisplay = () => {
-    if (!technique.training_id || !trainings) return null;
-    
-    const training = trainings.find(t => t.id === technique.training_id);
-    if (!training) return null;
-    
-    return `${training.dayOfWeek} at ${training.time}`;
-  };
-
-  const trainingDisplay = getTrainingDisplay();
-
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.titleContainer}>
-          <PlatformIcon platform={technique.source_platform} size={12} color="#60A5FA" />
-          <TouchableOpacity onPress={handleVideoPress}>
-            <Text style={styles.title} numberOfLines={2}>
-              {technique.title}
-            </Text>
-          </TouchableOpacity>
+    <Animated.View style={[{ transform: [{ scale }] }, { width: CARD_WIDTH }]}>
+      <Pressable
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={handleVideoPress}
+        style={[
+          styles.card,
+          { backgroundColor: palette.surface, borderColor: palette.border },
+          Shadows.card,
+        ]}
+      >
+        {/* Thumbnail */}
+        <View style={styles.thumbWrapper}>
+          {thumbnailUrl ? (
+            <Image source={{ uri: thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
+          ) : (
+            <View style={[styles.thumbnail, styles.thumbPlaceholder, { backgroundColor: palette.surfaceSunken }]}>
+              <Ionicons name="play-circle" size={28} color={palette.textTertiary} />
+            </View>
+          )}
+          <View style={styles.thumbOverlay} />
+          <View style={styles.platformBadge}>
+            <PlatformIcon platform={technique.source_platform ?? 'custom'} size={12} color="#FFF" />
+          </View>
         </View>
-        <View style={styles.cardActions}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleEdit}>
-            <Ionicons name="create" size={14} color="#60A5FA" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
-            <Ionicons name="trash" size={14} color="#EF4444" />
-          </TouchableOpacity>
+
+        {/* Body */}
+        <View style={styles.body}>
+          <Text style={[styles.title, { color: palette.text }]} numberOfLines={2}>
+            {technique.title}
+          </Text>
+
+          {categories.length > 0 && (
+            <View style={styles.badges}>
+              <CategoryBadge category={categories[0]} compact />
+              {categories.length > 1 && (
+                <Text style={[styles.more, { color: palette.textTertiary }]}>
+                  +{categories.length - 1}
+                </Text>
+              )}
+            </View>
+          )}
+
+          <View style={styles.actions}>
+            <Pressable
+              onPress={handleEdit}
+              style={[styles.actionBtn, { backgroundColor: palette.surfaceSunken }]}
+              hitSlop={6}
+            >
+              <Ionicons name="create-outline" size={13} color={Brand.primary} />
+            </Pressable>
+            <Pressable
+              onPress={handleDelete}
+              style={[styles.actionBtn, { backgroundColor: palette.surfaceSunken }]}
+              hitSlop={6}
+            >
+              <Ionicons name="trash-outline" size={13} color={Brand.accent} />
+            </Pressable>
+          </View>
         </View>
-      </View>
-
-      <View style={styles.cardContent}>
-        {categories.length > 0 && (
-          <View style={styles.categoriesContainer}>
-            {categories.slice(0, 2).map(category => {
-              const categoryColor = getCategoryColor(category);
-              return (
-                <View key={category} style={[styles.categoryBadge, { 
-                  backgroundColor: categoryColor.backgroundColor,
-                  borderColor: categoryColor.borderColor 
-                }]}>
-                  <Text style={[styles.categoryText, { color: categoryColor.color }]}>
-                    {category}
-                  </Text>
-                </View>
-              );
-            })}
-            {categories.length > 2 && (
-              <Text style={styles.moreCategoriesText}>+{categories.length - 2}</Text>
-            )}
-          </View>
-        )}
-
-        {trainingDisplay && (
-          <View style={styles.trainingContainer}>
-            <Text style={styles.trainingText}>Scheduled for: {trainingDisplay}</Text>
-          </View>
-        )}
-
-        {technique.shared_by_gym_id && (
-          <View style={styles.sharedBadge}>
-            <Ionicons name="people" size={12} color="#34C759" />
-            <Text style={styles.sharedText}>{t('technique.shared')}</Text>
-          </View>
-        )}
-      </View>
-    </View>
+      </Pressable>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1F2937',
+    borderRadius: BorderRadius.card,
     borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-    width: '48%',
-    minHeight: 120,
-  },
-  cardHeader: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
-    marginBottom: 8,
-    flex: 1,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 4,
-  },
-  actionButton: {
-    padding: 2,
-  },
-  cardContent: {
-    padding: 12,
-    gap: 8,
-  },
-  categoriesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  categoryBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
-  moreCategoriesText: {
-    color: '#9CA3AF',
-    fontSize: 10,
-    fontStyle: 'italic',
-  },
-  videoButton: {
-    position: 'relative',
-    borderRadius: 6,
     overflow: 'hidden',
-    alignSelf: 'flex-start',
+  },
+  thumbWrapper: {
+    width: '100%',
+    height: THUMBNAIL_HEIGHT,
+    position: 'relative',
   },
   thumbnail: {
-    width: 80,
-    height: 60,
-    borderRadius: 6,
-    backgroundColor: '#374151',
+    width: '100%',
+    height: '100%',
   },
-  videoOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
+  thumbPlaceholder: {
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  platformBadge: {
+    position: 'absolute',
+    top: 7,
+    left: 7,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: BorderRadius.full,
+    padding: 4,
+  },
+  body: {
+    padding: 10,
+    gap: 6,
+  },
+  title: {
+    ...Typography.smallMedium,
+    lineHeight: 18,
+  },
+  badges: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
-  videoButtonText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '500',
+  more: {
+    ...Typography.micro,
   },
-  scheduledBadge: {
+  actions: {
     flexDirection: 'row',
+    gap: 5,
+    justifyContent: 'flex-end',
+    marginTop: 2,
+  },
+  actionBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: BorderRadius.sm,
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  scheduledText: {
-    fontSize: 10,
-    color: '#F59E0B',
-    marginLeft: 2,
-    fontWeight: '500',
-  },
-  sharedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(52, 199, 89, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  sharedText: {
-    fontSize: 10,
-    color: '#34C759',
-    marginLeft: 2,
-    fontWeight: '500',
-  },
-  trainingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  trainingText: {
-    fontSize: 10,
-    color: '#F59E0B',
-    fontWeight: '500',
+    justifyContent: 'center',
   },
 });
 
-export default TechniqueGridItem; 
+export default TechniqueGridItem;

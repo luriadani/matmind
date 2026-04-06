@@ -2,69 +2,47 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from './Localization';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { Brand, Colors } from '../constants/Colors';
+import { Typography } from '../constants/Typography';
+import { BorderRadius, Spacing } from '../constants/Spacing';
 
-const daysOfWeek = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
-const daysOfWeekEn = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const defaultTrainingCategories = ["gi", "no_gi", "competition", "beginner", "advanced", "open_mat"];
+const daysOfWeek = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const daysOfWeekEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const defaultTrainingCategories = ['gi', 'no_gi', 'competition', 'beginner', 'advanced', 'open_mat'];
 
 const TrainingFormModal = ({ visible, onClose, onSave, training = null }) => {
   const { t, language, settings } = useAppContext();
-  const currentDaysOfWeek = language === 'he' ? daysOfWeek : daysOfWeekEn;
-  
-  const [formData, setFormData] = useState({
-    dayOfWeek: currentDaysOfWeek[0],
-    time: '19:00',
-    location: '',
-    category: 'gi',
-    instructor: ''
-  });
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
+  const currentDays = language === 'he' ? daysOfWeek : daysOfWeekEn;
 
+  const emptyForm = { dayOfWeek: currentDays[0], time: '19:00', location: '', category: 'gi', instructor: '' };
+  const [formData, setFormData] = useState(emptyForm);
   const [errors, setErrors] = useState({});
 
   React.useEffect(() => {
     if (training) {
       setFormData({
-        dayOfWeek: training.dayOfWeek || currentDaysOfWeek[0],
+        dayOfWeek: training.dayOfWeek || currentDays[0],
         time: training.time || '19:00',
         location: training.location || '',
         category: training.category || 'gi',
-        instructor: training.instructor || ''
+        instructor: training.instructor || '',
       });
     } else {
-      setFormData({
-        dayOfWeek: currentDaysOfWeek[0],
-        time: '19:00',
-        location: '',
-        category: 'gi',
-        instructor: ''
-      });
+      setFormData({ ...emptyForm, dayOfWeek: currentDays[0] });
     }
     setErrors({});
   }, [training, visible, language]);
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.dayOfWeek) {
-      newErrors.dayOfWeek = 'Day is required';
-    }
-    
-    if (!formData.time) {
-      newErrors.time = 'Time is required';
-    }
-    
-    if (!formData.category) {
-      newErrors.category = 'Type is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSave = () => {
-    if (validateForm()) {
-      onSave(formData);
-    }
+  const validate = () => {
+    const e = {};
+    if (!formData.dayOfWeek) e.dayOfWeek = 'Required';
+    if (!formData.time) e.time = 'Required';
+    if (!formData.category) e.category = 'Required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const getArray = (val) => {
@@ -74,137 +52,145 @@ const TrainingFormModal = ({ visible, onClose, onSave, training = null }) => {
     return [];
   };
 
-  const validCustomCategories = getArray(settings?.custom_training_categories);
-  const allTrainingCategories = [...new Set([...defaultTrainingCategories, ...validCustomCategories])];
+  const allCategories = [...new Set([...defaultTrainingCategories, ...getArray(settings?.custom_training_categories)])];
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.modal}>
-          <View style={styles.header}>
-            <Text style={styles.title}>
-              {training ? 'Edit Training' : 'Add Training'}
+        <View style={[styles.sheet, { backgroundColor: palette.surfaceElevated }]}>
+
+          {/* Handle */}
+          <View style={[styles.handle, { backgroundColor: palette.border }]} />
+
+          {/* Header */}
+          <View style={[styles.header, { borderBottomColor: palette.border }]}>
+            <Text style={[styles.title, { color: palette.text }]}>
+              {training ? t('schedule.edit_training') || 'Edit Training' : t('schedule.add_training') || 'Add Training'}
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#9CA3AF" />
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+              <Ionicons name="close" size={22} color={palette.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content}>
-            {/* Day of Week */}
-            <View style={styles.formField}>
-              <Text style={styles.label}>Day</Text>
-              <View style={styles.pickerContainer}>
-                {currentDaysOfWeek.map(day => (
-                  <TouchableOpacity
-                    key={day}
-                    style={[
-                      styles.pickerOption,
-                      formData.dayOfWeek === day && styles.pickerOptionSelected
-                    ]}
-                    onPress={() => setFormData(prev => ({ ...prev, dayOfWeek: day }))}
-                  >
-                    <Text style={[
-                      styles.pickerOptionText,
-                      formData.dayOfWeek === day && styles.pickerOptionTextSelected
-                    ]}>
-                      {day}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+
+            {/* Day */}
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: palette.textSecondary }]}>Day</Text>
+              <View style={styles.pillRow}>
+                {currentDays.map(day => {
+                  const active = formData.dayOfWeek === day;
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      style={[
+                        styles.pill,
+                        { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+                        active && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+                      ]}
+                      onPress={() => setFormData(p => ({ ...p, dayOfWeek: day }))}
+                    >
+                      <Text style={[styles.pillText, { color: active ? Brand.primary : palette.textSecondary }]}>
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              {errors.dayOfWeek && (
-                <Text style={styles.errorText}>{errors.dayOfWeek}</Text>
-              )}
+              {errors.dayOfWeek && <Text style={styles.error}>{errors.dayOfWeek}</Text>}
             </View>
 
             {/* Time */}
-            <View style={styles.formField}>
-              <Text style={styles.label}>Time</Text>
-              <View style={styles.timeContainer}>
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: palette.textSecondary }]}>Time</Text>
+              <View style={styles.timeRow}>
                 <TextInput
-                  style={[styles.timeInput, errors.time && styles.inputError]}
+                  style={[
+                    styles.timeInput,
+                    { backgroundColor: palette.surfaceSunken, borderColor: errors.time ? Brand.accent : palette.border, color: palette.text },
+                  ]}
                   value={formData.time}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, time: text }))}
+                  onChangeText={(text) => setFormData(p => ({ ...p, time: text }))}
                   placeholder="19:00"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={palette.textTertiary}
+                  keyboardType="numbers-and-punctuation"
                 />
-                <Text style={styles.timeFormat}>
+                <Text style={[styles.timeFormat, { color: palette.textTertiary }]}>
                   {settings?.time_format === '12h' ? '12h' : '24h'}
                 </Text>
               </View>
-              {errors.time && (
-                <Text style={styles.errorText}>{errors.time}</Text>
-              )}
+              {errors.time && <Text style={styles.error}>{errors.time}</Text>}
             </View>
 
             {/* Training Type */}
-            <View style={styles.formField}>
-              <Text style={styles.label}>Training Type</Text>
-              <View style={styles.pickerContainer}>
-                {allTrainingCategories.map(category => (
-                  <TouchableOpacity
-                    key={category}
-                    style={[
-                      styles.pickerOption,
-                      formData.category === category && styles.pickerOptionSelected
-                    ]}
-                    onPress={() => setFormData(prev => ({ ...prev, category }))}
-                  >
-                    <Text style={[
-                      styles.pickerOptionText,
-                      formData.category === category && styles.pickerOptionTextSelected
-                    ]}>
-                      {category}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: palette.textSecondary }]}>Training Type</Text>
+              <View style={styles.pillRow}>
+                {allCategories.map(cat => {
+                  const active = formData.category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.pill,
+                        { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+                        active && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+                      ]}
+                      onPress={() => setFormData(p => ({ ...p, category: cat }))}
+                    >
+                      <Text style={[styles.pillText, { color: active ? Brand.primary : palette.textSecondary }]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              {errors.category && (
-                <Text style={styles.errorText}>{errors.category}</Text>
-              )}
+              {errors.category && <Text style={styles.error}>{errors.category}</Text>}
             </View>
 
             {/* Location */}
-            <View style={styles.formField}>
-              <Text style={styles.label}>Location</Text>
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: palette.textSecondary }]}>Location</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { backgroundColor: palette.surfaceSunken, borderColor: palette.border, color: palette.text }]}
                 value={formData.location}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
-                placeholder="Enter location"
-                placeholderTextColor="#9CA3AF"
+                onChangeText={(text) => setFormData(p => ({ ...p, location: text }))}
+                placeholder="e.g. Main gym"
+                placeholderTextColor={palette.textTertiary}
               />
             </View>
 
             {/* Instructor */}
-            <View style={styles.formField}>
-              <Text style={styles.label}>Instructor (Optional)</Text>
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: palette.textSecondary }]}>Instructor <Text style={{ color: palette.textTertiary }}>(optional)</Text></Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { backgroundColor: palette.surfaceSunken, borderColor: palette.border, color: palette.text }]}
                 value={formData.instructor}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, instructor: text }))}
-                placeholder="Enter instructor name"
-                placeholderTextColor="#9CA3AF"
+                onChangeText={(text) => setFormData(p => ({ ...p, instructor: text }))}
+                placeholder="Instructor name"
+                placeholderTextColor={palette.textTertiary}
               />
             </View>
+
+            <View style={{ height: 20 }} />
           </ScrollView>
 
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+          {/* Footer */}
+          <View style={[styles.footer, { borderTopColor: palette.border }]}>
+            <TouchableOpacity
+              style={[styles.cancelBtn, { backgroundColor: palette.surfaceSunken, borderColor: palette.border }]}
+              onPress={onClose}
+            >
+              <Text style={[styles.cancelText, { color: palette.textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>
-                Save
-              </Text>
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: Brand.primary }]}
+              onPress={() => validate() && onSave(formData)}
+            >
+              <Text style={styles.saveText}>Save</Text>
             </TouchableOpacity>
           </View>
+
         </View>
       </View>
     </Modal>
@@ -214,135 +200,115 @@ const TrainingFormModal = ({ visible, onClose, onSave, training = null }) => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
-  modal: {
-    backgroundColor: '#1F2937',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '90%',
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: Spacing.cardPaddingH,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
+    ...Typography.bodySemibold,
   },
-  closeButton: {
-    padding: 4,
+  closeBtn: {
+    padding: 2,
   },
-  content: {
-    padding: 20,
+  body: {
+    paddingHorizontal: Spacing.cardPaddingH,
+    paddingTop: 16,
   },
-  formField: {
+  field: {
     marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 8,
-  },
-  pickerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
   },
-  pickerOption: {
+  label: {
+    ...Typography.smallMedium,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  pill: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#374151',
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: '#4B5563',
   },
-  pickerOptionSelected: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
+  pillText: {
+    ...Typography.captionMedium,
   },
-  pickerOptionText: {
-    color: '#D1D5DB',
-    fontSize: 14,
-  },
-  pickerOptionTextSelected: {
-    color: 'white',
-  },
-  timeContainer: {
+  timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   timeInput: {
     flex: 1,
-    backgroundColor: '#374151',
     borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    padding: 12,
-    color: 'white',
-    fontSize: 16,
-  },
-  inputError: {
-    borderColor: '#EF4444',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    ...Typography.body,
   },
   timeFormat: {
-    color: '#9CA3AF',
-    fontSize: 12,
+    ...Typography.caption,
   },
   textInput: {
-    backgroundColor: '#374151',
     borderWidth: 1,
-    borderColor: '#4B5563',
-    borderRadius: 6,
-    padding: 12,
-    color: 'white',
-    fontSize: 16,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    ...Typography.body,
   },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginTop: 4,
+  error: {
+    ...Typography.caption,
+    color: '#FF6B6B',
+    marginTop: -4,
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 20,
+    gap: 10,
+    padding: Spacing.cardPaddingH,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
-    gap: 12,
   },
-  cancelButton: {
+  cancelBtn: {
     flex: 1,
-    backgroundColor: '#374151',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 13,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  cancelText: {
+    ...Typography.bodySemibold,
+  },
+  saveBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
   },
-  cancelButtonText: {
-    color: '#D1D5DB',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  saveButton: {
-    flex: 1,
-    backgroundColor: '#2563EB',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
+  saveText: {
+    ...Typography.bodySemibold,
+    color: '#FFFFFF',
   },
 });
 
-export default TrainingFormModal; 
+export default TrainingFormModal;

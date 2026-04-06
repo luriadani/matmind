@@ -5,94 +5,71 @@ import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from './Localization';
 import { useNotificationScheduler } from './NotificationScheduler';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { Brand, Colors } from '../constants/Colors';
+import { Typography } from '../constants/Typography';
+import { BorderRadius } from '../constants/Spacing';
 
-// Check if running in Expo Go
 const isExpoGo = Constants.appOwnership === 'expo';
 
 const NotificationSettings = ({ formData, handleChange }) => {
   const { t } = useAppContext();
   const { getScheduledNotifications } = useNotificationScheduler();
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
+
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [scheduledCount, setScheduledCount] = useState(0);
 
   useEffect(() => {
-    if (isExpoGo) {
-      setNotificationPermission('not-supported');
-      return;
-    }
-
-    const checkNotificationPermission = async () => {
+    if (isExpoGo) { setNotificationPermission('not-supported'); return; }
+    const check = async () => {
       try {
         const { status } = await Notifications.getPermissionsAsync();
         setNotificationPermission(status);
-      } catch (error) {
-        console.error('Error checking notification permission:', error);
-        setNotificationPermission('default');
-      }
+      } catch { setNotificationPermission('default'); }
     };
-
-    const loadScheduledNotifications = async () => {
+    const loadCount = async () => {
       try {
-        const notifications = await getScheduledNotifications();
-        setScheduledCount(notifications.length);
-      } catch (error) {
-        console.error('Error loading scheduled notifications:', error);
-      }
+        const n = await getScheduledNotifications();
+        setScheduledCount(n.length);
+      } catch {}
     };
-
-    checkNotificationPermission();
-    loadScheduledNotifications();
+    check();
+    loadCount();
   }, []);
 
-  const requestNotificationPermission = async () => {
+  const requestPermission = async () => {
     if (isExpoGo) {
-      Alert.alert(
-        'Expo Go Limitation',
-        'Push notifications are not supported in Expo Go. Please use a development build for full notification functionality.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Expo Go Limitation', 'Push notifications are not supported in Expo Go. Please use a development build.', [{ text: 'OK' }]);
       return;
     }
-
     try {
       const { status } = await Notifications.requestPermissionsAsync();
       setNotificationPermission(status);
-      if (status === 'granted') {
-        handleChange('notifications_enabled', true);
-      }
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-    }
+      if (status === 'granted') handleChange('notifications_enabled', true);
+    } catch {}
   };
 
-  const forceRefreshPermission = async () => {
+  const forceRefresh = async () => {
     try {
       const { status } = await Notifications.getPermissionsAsync();
       setNotificationPermission(status);
-      if (status === 'granted') {
-        handleChange('notifications_enabled', true);
-      }
-    } catch (error) {
-      console.error('Error refreshing notification permission:', error);
-    }
+      if (status === 'granted') handleChange('notifications_enabled', true);
+    } catch {}
   };
 
   const testNotification = async () => {
     if (isExpoGo) {
-      Alert.alert(
-        'Expo Go Limitation',
-        'Test notifications are not supported in Expo Go. To test notifications:\n\n1. Create a development build using EAS Build\n2. Install the development build on your device\n3. Use the test notification feature\n\nSee DEVELOPMENT_BUILD.md for detailed instructions.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Expo Go Limitation', 'Test notifications are not supported in Expo Go. Create a development build to test.', [{ text: 'OK' }]);
       return;
     }
-
     try {
       if (notificationPermission === 'granted') {
         await Notifications.scheduleNotificationAsync({
           content: {
             title: t('notifications.training_reminder_title'),
-            body: 'Time to check your drills! You have 3 technique(s) ready for your training. Open the app to review your techniques.',
+            body: 'Time to check your drills! Open the app to review your techniques.',
           },
           trigger: { seconds: 1 },
         });
@@ -100,355 +77,264 @@ const NotificationSettings = ({ formData, handleChange }) => {
       } else {
         Alert.alert('Permission Required', 'Please enable notifications first.');
       }
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      Alert.alert('Error', 'Failed to send test notification.');
-    }
+    } catch { Alert.alert('Error', 'Failed to send test notification.'); }
   };
 
-  const getNotificationStatusText = () => {
-    switch (notificationPermission) {
-      case 'granted':
-        return 'Notifications Enabled';
-      case 'denied':
-        return 'Notifications Blocked';
-      case 'undetermined':
-        return 'Permission Not Set';
-      default:
-        return 'Checking Permission...';
-    }
-  };
+  const statusColor = {
+    granted: Brand.success,
+    denied: Brand.accent,
+    undetermined: Brand.warning,
+  }[notificationPermission] ?? palette.textTertiary;
 
-  const getNotificationStatusColor = () => {
-    switch (notificationPermission) {
-      case 'granted':
-        return '#10B981';
-      case 'denied':
-        return '#EF4444';
-      case 'undetermined':
-        return '#F59E0B';
-      default:
-        return '#6B7280';
-    }
-  };
+  const statusLabel = {
+    granted: 'Enabled',
+    denied: 'Blocked',
+    undetermined: 'Not Set',
+    'not-supported': 'Not Supported',
+  }[notificationPermission] ?? 'Checking...';
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleRow}>
-          <Ionicons name="notifications" size={20} color="white" />
-          <Text style={styles.cardTitle}>{t('notifications.settings_title')}</Text>
+    <View style={styles.container}>
+      {/* Status row */}
+      <View style={styles.statusRow}>
+        <Text style={[styles.statusKey, { color: palette.textSecondary }]}>Status</Text>
+        <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20`, borderColor: statusColor }]}>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
         </View>
+        {scheduledCount > 0 && (
+          <Text style={[styles.scheduledText, { color: palette.textTertiary }]}>
+            {scheduledCount} reminder{scheduledCount !== 1 ? 's' : ''} scheduled
+          </Text>
+        )}
       </View>
-      <View style={styles.cardContent}>
-        {/* Permission Status */}
-        <View style={styles.statusContainer}>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Status:</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getNotificationStatusColor() }]}>
-              <Text style={styles.statusText}>{getNotificationStatusText()}</Text>
-            </View>
+
+      {/* Denied alert */}
+      {notificationPermission === 'denied' && (
+        <View style={[styles.alert, { backgroundColor: Brand.accentMuted, borderColor: Brand.accent }]}>
+          <Ionicons name="notifications-off-outline" size={18} color={Brand.accent} />
+          <View style={styles.alertBody}>
+            <Text style={[styles.alertTitle, { color: Brand.accent }]}>{t('notifications.permission_denied')}</Text>
+            <Text style={[styles.alertDesc, { color: palette.textSecondary }]}>{t('notifications.permission_denied_help')}</Text>
+            <TouchableOpacity
+              style={[styles.checkAgainBtn, { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary }]}
+              onPress={forceRefresh}
+            >
+              <Text style={[styles.checkAgainText, { color: Brand.primary }]}>{t('notifications.check_again')}</Text>
+            </TouchableOpacity>
           </View>
-          {scheduledCount > 0 && (
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Scheduled:</Text>
-              <Text style={styles.statusValue}>{scheduledCount} reminder{scheduledCount !== 1 ? 's' : ''}</Text>
-            </View>
-          )}
         </View>
+      )}
 
-        {/* Permission Denied Alert */}
-        {notificationPermission === 'denied' && (
-          <View style={styles.alertContainer}>
-            <View style={styles.alertContent}>
-              <Ionicons name="notifications-off" size={20} color="#EF4444" />
-              <View style={styles.alertText}>
-                <Text style={styles.alertTitle}>{t('notifications.permission_denied')}</Text>
-                <Text style={styles.alertDescription}>{t('notifications.permission_denied_help')}</Text>
-                <Text style={styles.alertHint}>{t('notifications.refresh_after_change')}</Text>
-                <View style={styles.alertButtons}>
-                  <TouchableOpacity style={styles.alertButton} onPress={forceRefreshPermission}>
-                    <Text style={styles.alertButtonText}>{t('notifications.check_again')}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Expo Go Alert */}
-        {isExpoGo && (
-          <View style={styles.alertContainer}>
-            <View style={styles.alertContent}>
-              <Ionicons name="information-circle" size={20} color="#F59E0B" />
-              <View style={styles.alertText}>
-                <Text style={[styles.alertTitle, { color: '#FCD34D' }]}>Expo Go Limitation</Text>
-                <Text style={[styles.alertDescription, { color: '#FCD34D' }]}>
-                  Push notifications are not supported in Expo Go. To test notifications, create a development build using EAS Build.
-                </Text>
-                <Text style={[styles.alertHint, { color: '#FCD34D' }]}>
-                  See DEVELOPMENT_BUILD.md for instructions.
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Not Supported Alert */}
-        {!isExpoGo && notificationPermission === 'not-supported' && (
-          <View style={styles.alertContainer}>
-            <Ionicons name="notifications-off" size={16} color="#EF4444" />
-            <Text style={styles.alertDescription}>Your device does not support notifications.</Text>
-          </View>
-        )}
-
-        {/* Notification Toggle */}
-        <View style={styles.switchField}>
-          <View style={styles.switchLabel}>
-            <Text style={styles.switchTitle}>
-              {formData.notifications_enabled ? t('notifications.enabled') : t('notifications.disabled')}
+      {/* Expo Go alert */}
+      {isExpoGo && (
+        <View style={[styles.alert, { backgroundColor: Brand.warningMuted, borderColor: Brand.warning }]}>
+          <Ionicons name="information-circle-outline" size={18} color={Brand.warning} />
+          <View style={styles.alertBody}>
+            <Text style={[styles.alertTitle, { color: Brand.warning }]}>Expo Go Limitation</Text>
+            <Text style={[styles.alertDesc, { color: palette.textSecondary }]}>
+              Push notifications require a development build. See DEVELOPMENT_BUILD.md.
             </Text>
-            <Text style={styles.switchDescription}>{t('notifications.enable_description')}</Text>
           </View>
-          <Switch
-            value={formData.notifications_enabled && notificationPermission === 'granted'}
-            onValueChange={(checked) => {
-              if (checked && notificationPermission !== 'granted') {
-                requestNotificationPermission();
-              } else {
-                handleChange('notifications_enabled', checked);
-              }
-            }}
-            disabled={notificationPermission === 'denied' || notificationPermission === 'not-supported'}
-            trackColor={{ false: '#374151', true: '#3B82F6' }}
-            thumbColor={formData.notifications_enabled && notificationPermission === 'granted' ? '#FFFFFF' : '#9CA3AF'}
-          />
         </View>
+      )}
 
-        {/* Notification Settings */}
-        {formData.notifications_enabled && notificationPermission === 'granted' && (
-          <>
-            <View style={styles.formField}>
-              <Text style={styles.label}>{t('notifications.minutes_before_training')}</Text>
-              <View style={styles.pickerContainer}>
-                {[10, 15, 30, 45, 60, 120].map(minutes => (
+      {/* Toggle */}
+      <View style={styles.switchRow}>
+        <View style={styles.switchLabel}>
+          <Text style={[styles.switchTitle, { color: palette.text }]}>
+            {formData.notifications_enabled ? t('notifications.enabled') : t('notifications.disabled')}
+          </Text>
+          <Text style={[styles.switchDesc, { color: palette.textSecondary }]}>{t('notifications.enable_description')}</Text>
+        </View>
+        <Switch
+          value={formData.notifications_enabled && notificationPermission === 'granted'}
+          onValueChange={(checked) => {
+            if (checked && notificationPermission !== 'granted') requestPermission();
+            else handleChange('notifications_enabled', checked);
+          }}
+          disabled={notificationPermission === 'denied' || notificationPermission === 'not-supported'}
+          trackColor={{ false: palette.surfaceSunken, true: Brand.primary }}
+          thumbColor="#FFFFFF"
+        />
+      </View>
+
+      {/* Timing picker */}
+      {formData.notifications_enabled && notificationPermission === 'granted' && (
+        <>
+          <View style={styles.field}>
+            <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+              {t('notifications.minutes_before_training')}
+            </Text>
+            <View style={styles.pillRow}>
+              {[10, 15, 30, 45, 60, 120].map(minutes => {
+                const active = (formData.notification_minutes_before || 10) === minutes;
+                const label = minutes === 60 ? t('settings.1_hour') : minutes === 120 ? t('settings.2_hours') : `${minutes} ${t('settings.minutes')}`;
+                return (
                   <TouchableOpacity
                     key={minutes}
-                    style={[styles.pickerOption, (formData.notification_minutes_before || 10) === minutes && styles.pickerOptionSelected]}
+                    style={[
+                      styles.pill,
+                      { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
+                      active && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+                    ]}
                     onPress={() => handleChange('notification_minutes_before', minutes)}
                   >
-                    <Text style={[styles.pickerOptionText, (formData.notification_minutes_before || 10) === minutes && styles.pickerOptionTextSelected]}>
-                      {minutes === 60 ? t('settings.1_hour') : minutes === 120 ? t('settings.2_hours') : `${minutes} ${t('settings.minutes')}`}
+                    <Text style={[styles.pillText, { color: active ? Brand.primary : palette.textSecondary }]}>
+                      {label}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
+                );
+              })}
             </View>
-            <TouchableOpacity style={styles.testButton} onPress={testNotification}>
-              <Ionicons name="notifications" size={16} color="white" />
-              <Text style={styles.testButtonText}>{t('notifications.test_notification')}</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* Enable Button */}
-        {notificationPermission === 'default' && (
-          <TouchableOpacity style={styles.enableButton} onPress={requestNotificationPermission}>
-            <Ionicons name="notifications" size={16} color="white" />
-            <Text style={styles.enableButtonText}>{t('notifications.enable_button')}</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.testBtn, { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary }]}
+            onPress={testNotification}
+          >
+            <Ionicons name="notifications-outline" size={15} color={Brand.primary} />
+            <Text style={[styles.testBtnText, { color: Brand.primary }]}>{t('notifications.test_notification')}</Text>
           </TouchableOpacity>
-        )}
-      </View>
+        </>
+      )}
+
+      {/* Enable button */}
+      {notificationPermission === 'default' && !isExpoGo && (
+        <TouchableOpacity
+          style={[styles.enableBtn, { backgroundColor: Brand.primary }]}
+          onPress={requestPermission}
+        >
+          <Ionicons name="notifications-outline" size={15} color="#FFFFFF" />
+          <Text style={styles.enableBtnText}>{t('notifications.enable_button')}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#1F2937',
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  cardHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-  },
-  cardContent: {
-    padding: 16,
-  },
-  statusContainer: {
-    marginBottom: 16,
+  container: {
+    gap: 14,
   },
   statusRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 10,
+    flexWrap: 'wrap',
   },
-  statusLabel: {
-    fontSize: 14,
-    color: '#D1D5DB',
+  statusKey: {
+    ...Typography.smallMedium,
   },
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
+    ...Typography.captionMedium,
   },
-  statusValue: {
-    color: '#60A5FA',
-    fontSize: 14,
-    fontWeight: '500',
+  scheduledText: {
+    ...Typography.caption,
   },
-  alertContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: '#DC2626',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-  },
-  alertContent: {
+  alert: {
     flexDirection: 'row',
+    gap: 10,
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
     alignItems: 'flex-start',
   },
-  alertText: {
+  alertBody: {
     flex: 1,
-    marginLeft: 12,
+    gap: 4,
   },
   alertTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FCA5A5',
-    marginBottom: 8,
+    ...Typography.smallMedium,
   },
-  alertDescription: {
-    fontSize: 14,
-    color: '#FCA5A5',
-    marginBottom: 8,
+  alertDesc: {
+    ...Typography.caption,
   },
-  alertHint: {
-    fontSize: 12,
-    color: '#F87171',
-    marginBottom: 16,
+  checkAgainBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
   },
-  alertButtons: {
-    flexDirection: 'row',
-    gap: 8,
+  checkAgainText: {
+    ...Typography.captionMedium,
   },
-  alertButton: {
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  alertButtonText: {
-    color: 'black',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  switchField: {
+  switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 12,
   },
   switchLabel: {
     flex: 1,
+    gap: 2,
   },
   switchTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 4,
+    ...Typography.smallMedium,
   },
-  switchDescription: {
-    fontSize: 12,
-    color: '#9CA3AF',
+  switchDesc: {
+    ...Typography.caption,
   },
-  formField: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 8,
-  },
-  pickerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  field: {
     gap: 8,
   },
-  pickerOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#374151',
+  fieldLabel: {
+    ...Typography.smallMedium,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: '#4B5563',
   },
-  pickerOptionSelected: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
+  pillText: {
+    ...Typography.captionMedium,
   },
-  pickerOptionText: {
-    color: '#D1D5DB',
-    fontSize: 14,
-  },
-  pickerOptionTextSelected: {
-    color: 'white',
-  },
-  testButton: {
+  testBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#4B5563',
+    gap: 6,
     alignSelf: 'flex-start',
-  },
-  testButtonText: {
-    color: 'black',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  enableButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: '#4B5563',
   },
-  enableButtonText: {
-    color: 'black',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
+  testBtnText: {
+    ...Typography.smallMedium,
+  },
+  enableBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
+  },
+  enableBtnText: {
+    ...Typography.bodySemibold,
+    color: '#FFFFFF',
   },
 });
 
-export default NotificationSettings; 
+export default NotificationSettings;

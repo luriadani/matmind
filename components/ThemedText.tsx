@@ -1,11 +1,31 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
+import { useThemeColor } from '../hooks/useThemeColor';
+import { Typography } from '../constants/Typography';
+import { Brand } from '../constants/Colors';
 
-import { useThemeColor } from '@/hooks/useThemeColor';
+export type ThemedTextType =
+  | 'default'
+  | 'defaultSemiBold'
+  | 'title'
+  | 'titleLarge'
+  | 'display'
+  | 'subtitle'
+  | 'videoTitle'
+  | 'sectionHeader'
+  | 'body'
+  | 'bodyLarge'
+  | 'caption'
+  | 'micro'
+  | 'badge'
+  | 'label'
+  | 'link';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+  type?: ThemedTextType;
+  secondary?: boolean;
+  tertiary?: boolean;
 };
 
 export function ThemedText({
@@ -13,19 +33,18 @@ export function ThemedText({
   lightColor,
   darkColor,
   type = 'default',
+  secondary = false,
+  tertiary = false,
   ...rest
 }: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  const colorKey = tertiary ? 'textTertiary' : secondary ? 'textSecondary' : 'text';
+  const color = useThemeColor({ light: lightColor, dark: darkColor }, colorKey as any);
 
   return (
     <Text
       style={[
         { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
+        styles[type] ?? styles.default,
         style,
       ]}
       {...rest}
@@ -35,26 +54,53 @@ export function ThemedText({
 
 const styles = StyleSheet.create({
   default: {
-    fontSize: 16,
-    lineHeight: 24,
+    ...Typography.body,
   },
   defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
+    ...Typography.bodySemibold,
+  },
+  body: {
+    ...Typography.body,
+  },
+  bodyLarge: {
+    ...Typography.bodyLarge,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    lineHeight: 32,
+    ...Typography.title,
+  },
+  titleLarge: {
+    ...Typography.titleLarge,
+  },
+  display: {
+    ...Typography.display,
   },
   subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...Typography.title,
+  },
+  videoTitle: {
+    ...Typography.videoTitle,
+  },
+  sectionHeader: {
+    ...Typography.sectionHeader,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  caption: {
+    ...Typography.caption,
+  },
+  micro: {
+    ...Typography.micro,
+    textTransform: 'uppercase',
+  },
+  badge: {
+    ...Typography.badge,
+  },
+  label: {
+    ...Typography.smallMedium,
   },
   link: {
-    lineHeight: 30,
-    fontSize: 16,
-    color: '#0a7ea4',
+    ...Typography.body,
+    color: Brand.primary,
+    textDecorationLine: 'underline',
   },
 });

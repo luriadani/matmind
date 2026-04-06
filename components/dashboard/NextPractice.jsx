@@ -1,21 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { formatTime, getTrainingCategoryColor, parseArray } from '../../utils/formatters';
+import { formatTime, parseArray } from '../../utils/formatters';
 import { useAppContext } from '../Localization';
 import PlatformIcon from '../PlatformIcon';
+import { useColorScheme } from '../../hooks/useColorScheme';
+import { Brand, Colors } from '../../constants/Colors';
+import { Typography } from '../../constants/Typography';
+import { BorderRadius, Spacing } from '../../constants/Spacing';
 
 const NextPractice = ({ trainings, techniques, onTechniqueDelete, onTechniqueUpdate }) => {
   const { t, settings, user } = useAppContext();
+  const scheme = useColorScheme() ?? 'dark';
+  const palette = Colors[scheme];
 
   const getDayNumber = (dayName) => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return days.indexOf(dayName);
-  };
-
-  const getDayName = (dayNumber) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[dayNumber];
   };
 
   const parseTimeToMinutes = (timeString) => {
@@ -30,59 +31,27 @@ const NextPractice = ({ trainings, techniques, onTechniqueDelete, onTechniqueUpd
     const currentDay = now.getDay();
     const currentTime = now.getHours() * 60 + now.getMinutes();
 
-    // Sort trainings by day and time
     const sortedTrainings = trainings
       .map(training => ({
         ...training,
         dayNumber: getDayNumber(training.dayOfWeek),
-        timeInMinutes: parseTimeToMinutes(training.time)
+        timeInMinutes: parseTimeToMinutes(training.time),
       }))
-      .sort((a, b) => {
-        // First sort by day
-        if (a.dayNumber !== b.dayNumber) {
-          return a.dayNumber - b.dayNumber;
-        }
-        // Then sort by time
-        return a.timeInMinutes - b.timeInMinutes;
-      });
+      .sort((a, b) => a.dayNumber !== b.dayNumber ? a.dayNumber - b.dayNumber : a.timeInMinutes - b.timeInMinutes);
 
-    // Find the next training
     for (let i = 0; i < sortedTrainings.length; i++) {
       const training = sortedTrainings[i];
-      
-      // If training is today and hasn't passed yet
       if (training.dayNumber === currentDay && training.timeInMinutes > currentTime) {
-        return {
-          ...training,
-          isToday: true,
-          daysUntil: 0
-        };
+        return { ...training, isToday: true, daysUntil: 0 };
       }
-      
-      // If training is in the future
-      if (training.dayNumber > currentDay || (training.dayNumber === currentDay && training.timeInMinutes > currentTime)) {
-        const daysUntil = training.dayNumber > currentDay 
-          ? training.dayNumber - currentDay 
-          : 0;
-        
-        return {
-          ...training,
-          isToday: training.dayNumber === currentDay,
-          daysUntil
-        };
+      if (training.dayNumber > currentDay) {
+        return { ...training, isToday: false, daysUntil: training.dayNumber - currentDay };
       }
     }
 
-    // If no future training this week, return the first training of next week
     if (sortedTrainings.length > 0) {
-      const firstTraining = sortedTrainings[0];
-      const daysUntil = (7 - currentDay + firstTraining.dayNumber) % 7;
-      
-      return {
-        ...firstTraining,
-        isToday: false,
-        daysUntil
-      };
+      const first = sortedTrainings[0];
+      return { ...first, isToday: false, daysUntil: (7 - currentDay + first.dayNumber) % 7 };
     }
 
     return null;
@@ -90,129 +59,108 @@ const NextPractice = ({ trainings, techniques, onTechniqueDelete, onTechniqueUpd
 
   const nextTrainingTechniques = useMemo(() => {
     if (!nextTraining || !techniques) return [];
-
-    // Get user's dashboard visible categories
     const dashboardVisibleCategories = parseArray(user?.dashboard_visible_categories || 'Try Next Class');
-
     return techniques.filter(technique => {
-      // Parse technique categories
       const techniqueCategories = parseArray(technique.category);
-      
-      // Check if any of the technique's categories are enabled in dashboard settings
-      const hasVisibleCategory = techniqueCategories.some(category => 
-        dashboardVisibleCategories.includes(category)
-      );
-      
-      if (!hasVisibleCategory) {
-        return false;
-      }
-
-      // Show techniques that are specifically assigned to this training
-      if (technique.training_id === nextTraining.id) {
-        return true;
-      }
-      
-      // OR show techniques with any visible category that have no specific training assignment
-      const hasVisibleCategoryWithoutTraining = techniqueCategories.some(category => 
-        dashboardVisibleCategories.includes(category) && !technique.training_id
-      );
-      
-      if (hasVisibleCategoryWithoutTraining) {
-        return true;
-      }
-      
-      return false;
+      const hasVisibleCategory = techniqueCategories.some(c => dashboardVisibleCategories.includes(c));
+      if (!hasVisibleCategory) return false;
+      if (technique.training_id === nextTraining.id) return true;
+      return techniqueCategories.some(c => dashboardVisibleCategories.includes(c) && !technique.training_id);
     });
   }, [nextTraining, techniques, user?.dashboard_visible_categories]);
 
-  const getTimeDisplay = () => {
-    return `${nextTraining.dayOfWeek} at ${formatTime(nextTraining.time, settings.time_format)}`;
-  };
-
   if (!nextTraining) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
         <View style={styles.header}>
-          <Ionicons name="calendar" size={20} color="#60A5FA" />
-          <Text style={styles.title}>Selected Drills</Text>
+          <View style={[styles.iconWrap, { backgroundColor: Brand.primaryMuted }]}>
+            <Ionicons name="calendar-outline" size={16} color={Brand.primary} />
+          </View>
+          <Text style={[styles.cardTitle, { color: palette.text }]}>{t('dashboard.selected_drills')}</Text>
         </View>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No upcoming practices scheduled</Text>
-        </View>
+        <Text style={[styles.emptyText, { color: palette.textTertiary }]}>
+          {t('dashboard.no_upcoming_practices')}
+        </Text>
       </View>
     );
   }
 
+  const timeDisplay = `${nextTraining.dayOfWeek} · ${formatTime(nextTraining.time, settings.time_format)}`;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="calendar" size={20} color="#60A5FA" />
-        <Text style={styles.title}>Selected Drills</Text>
-        <View style={[styles.badge, getTrainingCategoryColor(nextTraining.category)]}>
-          <Text style={[styles.badgeText, { color: getTrainingCategoryColor(nextTraining.category).color }]}>
-                            {nextTraining.category}
-          </Text>
+        <View style={[styles.iconWrap, { backgroundColor: Brand.primaryMuted }]}>
+          <Ionicons name="calendar-outline" size={16} color={Brand.primary} />
         </View>
-      </View>
-      <Text style={styles.subtitle}>Next training on {getTimeDisplay()}</Text>
-
-      <View style={styles.trainingInfo}>
-        <View style={styles.timeInfo}>
-          <Ionicons name="time" size={16} color="#60A5FA" />
-          <Text style={styles.timeText}>{getTimeDisplay()}</Text>
-        </View>
-        
-        {nextTraining.location && (
-          <View style={styles.locationInfo}>
-            <Ionicons name="location" size={16} color="#9CA3AF" />
-            <Text style={styles.locationText}>{nextTraining.location}</Text>
-          </View>
-        )}
-        
-        {nextTraining.instructor && (
-          <View style={styles.instructorInfo}>
-            <Ionicons name="person" size={16} color="#9CA3AF" />
-            <Text style={styles.instructorText}>{nextTraining.instructor}</Text>
+        <Text style={[styles.cardTitle, { color: palette.text }]}>{t('dashboard.selected_drills')}</Text>
+        {nextTraining.isToday && (
+          <View style={[styles.todayBadge, { backgroundColor: Brand.accentMuted }]}>
+            <Text style={[styles.todayBadgeText, { color: Brand.accent }]}>{t('general.today')}</Text>
           </View>
         )}
       </View>
 
+      {/* Time row */}
+      <View style={styles.metaRow}>
+        <Ionicons name="time-outline" size={14} color={palette.textSecondary} />
+        <Text style={[styles.metaText, { color: palette.textSecondary }]}>{timeDisplay}</Text>
+
+        {nextTraining.category && (
+          <View style={[styles.categoryPill, { backgroundColor: Brand.primaryMuted }]}>
+            <Text style={[styles.categoryPillText, { color: Brand.primary }]}>
+              {nextTraining.category}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {nextTraining.location && (
+        <View style={styles.metaRow}>
+          <Ionicons name="location-outline" size={14} color={palette.textTertiary} />
+          <Text style={[styles.metaText, { color: palette.textTertiary }]}>{nextTraining.location}</Text>
+        </View>
+      )}
+
+      {nextTraining.instructor && (
+        <View style={styles.metaRow}>
+          <Ionicons name="person-outline" size={14} color={palette.textTertiary} />
+          <Text style={[styles.metaText, { color: palette.textTertiary }]}>{nextTraining.instructor}</Text>
+        </View>
+      )}
+
+      {/* Techniques list */}
       {nextTrainingTechniques.length > 0 && (
-        <View style={styles.techniquesSection}>
-          <ScrollView 
-            style={styles.techniquesScrollView}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-          >
-            <View style={styles.techniquesList}>
+        <View style={[styles.techniquesSection, { borderTopColor: palette.border }]}>
+          <ScrollView style={styles.techniqueScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+            <View style={styles.techniqueList}>
               {nextTrainingTechniques.map(technique => (
-                <View key={technique.id} style={styles.techniqueItem}>
-                  <View style={styles.techniqueInfo}>
-                    <PlatformIcon platform={technique.source_platform} size={12} color="#60A5FA" />
-                    <TouchableOpacity onPress={() => {
-                      if (technique.video_url) {
-                        Linking.openURL(technique.video_url).catch(err => {
-                          console.error('Error opening video URL:', err);
-                        });
-                      }
-                    }}>
-                      <Text style={styles.techniqueTitle}>{technique.title}</Text>
-                    </TouchableOpacity>
-                    {technique.category && (
-                      <View style={styles.categoryBadge}>
-                        <Text style={styles.categoryText}>
-                          {parseArray(technique.category).join(', ')}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.deleteButton}
+                <TouchableOpacity
+                  key={technique.id}
+                  style={[styles.techniqueRow, { backgroundColor: palette.surfaceSunken, borderColor: palette.border }]}
+                  activeOpacity={0.7}
+                  onPress={() => technique.video_url && Linking.openURL(technique.video_url).catch(() => {})}
+                >
+                  <PlatformIcon platform={technique.source_platform} size={13} color={Brand.primary} />
+                  <Text style={[styles.techniqueTitle, { color: palette.text }]} numberOfLines={1}>
+                    {technique.title}
+                  </Text>
+                  {technique.category && (
+                    <View style={[styles.catPill, { backgroundColor: Brand.primaryMuted }]}>
+                      <Text style={[styles.catPillText, { color: Brand.primary }]} numberOfLines={1}>
+                        {parseArray(technique.category)[0]}
+                      </Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
                     onPress={() => onTechniqueDelete(technique.id)}
+                    hitSlop={8}
+                    style={styles.deleteBtn}
                   >
-                    <Ionicons name="trash" size={16} color="#EF4444" />
+                    <Ionicons name="trash-outline" size={15} color={Brand.accent} />
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           </ScrollView>
@@ -223,138 +171,95 @@ const NextPractice = ({ trainings, techniques, onTechniqueDelete, onTechniqueUpd
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#1F2937',
+  card: {
+    borderRadius: BorderRadius.card,
     borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
+    padding: Spacing.cardPaddingH,
+    marginBottom: Spacing.cardGap,
+    gap: 10,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 8,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    marginLeft: 8,
+  iconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    ...Typography.bodySemibold,
     flex: 1,
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 4,
-    marginLeft: 28,
-  },
-  badge: {
+  todayBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
   },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '500',
+  todayBadgeText: {
+    ...Typography.captionMedium,
   },
-  trainingInfo: {
-    marginBottom: 16,
-  },
-  timeInfo: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 6,
   },
-  timeText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: 'white',
-    marginLeft: 8,
+  metaText: {
+    ...Typography.caption,
+    flex: 1,
   },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+  categoryPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
   },
-  locationText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  instructorInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  instructorText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginLeft: 8,
+  categoryPillText: {
+    ...Typography.captionMedium,
   },
   techniquesSection: {
     borderTopWidth: 1,
-    borderTopColor: '#374151',
-    paddingTop: 16,
+    paddingTop: 10,
+    marginTop: 2,
   },
-  techniquesTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#D1D5DB',
-    marginBottom: 12,
+  techniqueScroll: {
+    maxHeight: 180,
   },
-  techniquesScrollView: {
-    maxHeight: 180, // Height for approximately 3 techniques (3 * 50px + gaps)
+  techniqueList: {
+    gap: 6,
   },
-  techniquesList: {
-    gap: 8,
-  },
-  techniqueItem: {
+  techniqueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#374151',
-    borderRadius: 6,
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: '#4B5563',
-  },
-  techniqueInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   techniqueTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'white',
+    ...Typography.caption,
     flex: 1,
   },
-  categoryBadge: {
-    backgroundColor: '#2563EB',
+  catPill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: BorderRadius.full,
+    maxWidth: 80,
   },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'white',
+  catPillText: {
+    ...Typography.micro,
   },
-  deleteButton: {
-    padding: 4,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 24,
+  deleteBtn: {
+    padding: 2,
   },
   emptyText: {
-    color: '#9CA3AF',
-    fontSize: 14,
+    ...Typography.caption,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
 });
 
-export default NextPractice; 
+export default NextPractice;
