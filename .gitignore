@@ -56,3 +56,6 @@ android/captures/
 ios/build/
 ios/Pods/
 *.keystore
+
+.vercel
+.env*.local
