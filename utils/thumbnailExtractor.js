@@ -9,7 +9,7 @@ export const extractThumbnailFromUrl = (url) => {
     if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
       const videoId = extractYouTubeVideoId(url);
       if (videoId) {
-        return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+        return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
       }
     }
 

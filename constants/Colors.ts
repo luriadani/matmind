@@ -62,32 +62,32 @@ const light = {
 
 // ─── Dark Mode ────────────────────────────────────────────────────────────────
 const dark = {
-  // Backgrounds — deep, slightly blue-tinted blacks (Instagram/TikTok feel)
-  background: '#08080F',       // App background
-  surface: '#13131E',          // Cards
-  surfaceElevated: '#1C1C2E',  // Modals, bottom sheets
-  surfaceSunken: '#0F0F18',    // Input fields
+  // Backgrounds — softened dark (less pitch-black, more charcoal)
+  background: '#0E0E18',       // App background
+  surface: '#1A1A28',          // Cards
+  surfaceElevated: '#232336',  // Modals, bottom sheets
+  surfaceSunken: '#14141F',    // Input fields
 
   // Text
-  text: '#F2F2F8',             // Primary text
-  textSecondary: '#8E8EA8',    // Metadata, labels
-  textTertiary: '#52526A',     // Placeholder, disabled
+  text: '#F0F0FA',             // Primary text
+  textSecondary: '#9898B8',    // Metadata, labels
+  textTertiary: '#5A5A78',     // Placeholder, disabled
   textInverse: '#0F0F1A',
 
   // Borders & Dividers
-  border: '#2A2A40',
-  borderStrong: '#3C3C58',
-  divider: '#1C1C2E',
+  border: '#30304A',
+  borderStrong: '#44446A',
+  divider: '#232336',
 
   // Interactive
   tint: Brand.primaryLight,
-  icon: '#8E8EA8',
-  tabIconDefault: '#52526A',
+  icon: '#9898B8',
+  tabIconDefault: '#5A5A78',
   tabIconSelected: Brand.primaryLight,
 
   // Overlays
-  overlay: 'rgba(0,0,0,0.7)',
-  thumbnailOverlay: 'rgba(0,0,0,0.4)',
+  overlay: 'rgba(0,0,0,0.65)',
+  thumbnailOverlay: 'rgba(0,0,0,0.35)',
 
   // Semantic (reuse Brand)
   ...Brand,
@@ -125,7 +125,7 @@ export const CategoryColors = {
 // ─── Media / Video ───────────────────────────────────────────────────────────
 // Values that apply regardless of color scheme (e.g., video UI always dark)
 export const Media = {
-  thumbnailPlaceholderBg: '#1C1C2E', // Dark navy — video placeholder background
+  thumbnailPlaceholderBg: '#232336', // Dark charcoal — video placeholder background
   thumbnailOverlayColor: 'rgba(0,0,0,0.18)',
 } as const;
 

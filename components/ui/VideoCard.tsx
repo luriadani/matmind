@@ -12,7 +12,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -81,6 +81,7 @@ export function VideoCard({
 }: VideoCardProps) {
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
+  const [thumbError, setThumbError] = useState(false);
 
   // Press-to-scale animation
   const scale = useRef(new Animated.Value(1)).current;
@@ -163,11 +164,12 @@ export function VideoCard({
       >
         {/* ── Thumbnail ──────────────────────────────────── */}
         <View style={styles.thumbnailWrapper}>
-          {thumbnailSource ? (
+          {thumbnailSource && !thumbError ? (
             <Image
               source={thumbnailSource}
               style={styles.thumbnail}
               resizeMode="cover"
+              onError={() => setThumbError(true)}
             />
           ) : (
             <View style={[styles.thumbnail, styles.thumbnailPlaceholder, { backgroundColor: Media.thumbnailPlaceholderBg }]}>
