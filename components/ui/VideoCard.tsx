@@ -19,12 +19,18 @@ import {
   Dimensions,
   Image,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
   type ViewStyle,
 } from 'react-native';
+
+const OG_IMAGE_API =
+  Platform.OS === 'web'
+    ? '/api/og-image'
+    : 'https://matmind.vercel.app/api/og-image';
 import { router } from 'expo-router';
 import { Brand, Colors, Media } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -98,7 +104,7 @@ export function VideoCard({
     const fetchOg = async () => {
       try {
         const res = await fetch(
-          `/api/og-image?url=${encodeURIComponent(technique.video_url)}`
+          `${OG_IMAGE_API}?url=${encodeURIComponent(technique.video_url)}`
         );
         if (!res.ok || cancelled) return;
         const { imageUrl } = await res.json();
