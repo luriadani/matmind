@@ -137,6 +137,51 @@ Layer in animations using `react-native-reanimated` (already installed).
 
 ---
 
+---
+
+## Phase 6 — Auth & User Isolation (branch: `main`)
+
+### Goal
+Replace the hardcoded single-user startup with a real login/register flow. Each user sees only their own data. New accounts get a 2-week free trial with full access; after that, free tier allows 2 techniques.
+
+### Rules
+- Local-only (AsyncStorage) — no cloud backend added yet
+- No email verification or forgot-password for MVP
+- Passwords hashed with SHA-256 via `expo-crypto`
+- Session persisted in AsyncStorage as `session_user_email`
+
+### Auth Flow
+```
+App starts
+  └─ check AsyncStorage for session_user_email
+       ├─ found → load user → enter tabs
+       └─ not found → redirect to /login
+              ├─ Login screen → validate → set session → tabs
+              └─ Register link → Register screen → create user (trial) → set session → tabs
+```
+
+### Trial & Free Tier
+| State | Access |
+|---|---|
+| Registered ≤ 14 days ago | Full (unlimited techniques) |
+| Trial expired, no subscription | Max **2** techniques |
+| Paid (Yearly / Lifetime) | Unlimited |
+| Admin role | Always unlimited |
+
+### Files
+| File | Change |
+|---|---|
+| `constants/billing.ts` | `freeTechniqueLimit` 3 → 2 |
+| `entities/User.js` | Add `createAccount()`, `login()`, `findByEmail()` |
+| `app/login.tsx` | New — login screen |
+| `app/register.tsx` | New — register screen |
+| `app/_layout.tsx` | Auth guard — redirect to /login if no session |
+| `components/Localization.js` | Session-based user loading + expose `logout()` |
+| `app/(tabs)/settings.tsx` | Add Log Out button |
+| `data/users.ts` | Keep sample users as demo only; new users start empty |
+
+---
+
 ## What We Are NOT Doing in This Branch
 
 - No logic changes

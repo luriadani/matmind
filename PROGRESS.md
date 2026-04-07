@@ -149,6 +149,31 @@ app/technique-form.tsx
 
 ---
 
+---
+
+## Phase 6 — Auth & User Isolation
+
+| Task | Status | Notes |
+|---|---|---|
+| P6-1 · Free limit 3→2 | ⏳ | `constants/billing.ts` |
+| P6-2 · User entity auth methods | ⏳ | `createAccount`, `login`, `findByEmail` |
+| P6-3 · Login screen | ⏳ | `app/login.tsx` |
+| P6-4 · Register screen | ⏳ | `app/register.tsx` |
+| P6-5 · Auth guard in root layout | ⏳ | `app/_layout.tsx` |
+| P6-6 · Session-based user loading | ⏳ | `components/Localization.js` |
+| P6-7 · Log Out button in Settings | ⏳ | `app/(tabs)/settings.tsx` |
+| P6-8 · New users start empty | ⏳ | `data/techniques.ts` |
+
+**Decisions:**
+- Local AsyncStorage only (no cloud backend this phase)
+- Passwords hashed with SHA-256 via expo-crypto
+- Session key: `session_user_email` in AsyncStorage
+- Free limit: 2 techniques (changed from 3)
+- Trial: 14 days full access after registration
+- New accounts start empty (no sample data)
+
+---
+
 ## Next Steps (Phase 4)
 
 1. Run the app and do a visual walkthrough on a device or simulator

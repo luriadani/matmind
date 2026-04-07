@@ -202,6 +202,63 @@ Each task maps to PLAN.md. Status: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
+---
+
+## Phase 6 — Auth & User Isolation
+
+### P6-1 · Free technique limit 3 → 2
+- [ ] Change `freeTechniqueLimit: 3` → `2` in `constants/billing.ts`
+- **File:** `constants/billing.ts`
+
+### P6-2 · User entity — auth methods
+- [ ] Add `findByEmail(email)` — returns user or null
+- [ ] Add `createAccount({ email, password, name })` — hashes password (SHA-256 via expo-crypto), sets `trial_start`, `trial_end` (+14 days), stores new user
+- [ ] Add `login(email, password)` — hashes input, compares to stored hash, returns user or null
+- **File:** `entities/User.js`
+
+### P6-3 · Login screen
+- [ ] Fields: Email, Password
+- [ ] "Sign In" button → calls `User.login()` → stores session → navigates to `/(tabs)`
+- [ ] Error message for wrong credentials
+- [ ] Link to Register screen
+- [ ] Styled with design tokens (dark + light mode)
+- **File:** `app/login.tsx` (new)
+
+### P6-4 · Register screen
+- [ ] Fields: Full Name, Email, Password, Confirm Password
+- [ ] "Create Account" button → calls `User.createAccount()` → sets session → navigates to `/(tabs)`
+- [ ] Validation: passwords match, email not already taken
+- [ ] Shows "14-day free trial included" message
+- [ ] Link back to Login screen
+- [ ] Styled with design tokens (dark + light mode)
+- **File:** `app/register.tsx` (new)
+
+### P6-5 · Auth guard in root layout
+- [ ] On mount: check AsyncStorage for `session_user_email`
+- [ ] If missing → `router.replace('/login')`
+- [ ] If present → allow normal tab navigation
+- **File:** `app/_layout.tsx`
+
+### P6-6 · Session-based user loading in Localization
+- [ ] Remove hardcoded `luriadani@gmail.com` selection
+- [ ] Read `session_user_email` from AsyncStorage on startup
+- [ ] Load matching user from `User` entity
+- [ ] Expose `logout()` function: clears `session_user_email` + resets state + redirects to `/login`
+- **File:** `components/Localization.js`
+
+### P6-7 · Log Out button in Settings
+- [ ] Add "Log Out" row at the bottom of the settings screen
+- [ ] Calls `logout()` from `useAppContext()`
+- [ ] Confirm dialog before logout
+- **File:** `app/(tabs)/settings.tsx`
+
+### P6-8 · New users start empty
+- [ ] Sample techniques in `data/users.ts` / `data/techniques.ts` only shown for demo user
+- [ ] New registered users start with 0 techniques
+- **File:** `data/techniques.ts` / `entities/Technique.js`
+
+---
+
 ## Blocked / Questions
 
 - [ ] **[?] P3 scope** — Include animations in this branch or separate?
