@@ -136,16 +136,21 @@ export function VideoCard({
     ? `${assignedTraining.dayOfWeek} · ${assignedTraining.time}`
     : null;
 
-  // Only use real HTTP(S) image URLs — SVG data URIs from getFallbackThumbnail
-  // are not supported by RN Image and render blank. Fall through to custom placeholder.
-  const rawThumbnail =
-    technique.thumbnail_url ||
-    extractThumbnailFromUrl(technique.video_url);
+  // Only YouTube and Vimeo provide stable, publicly accessible thumbnail URLs.
+  // Instagram/Facebook CDN URLs expire or are CORS-blocked; TikTok has none.
+  // For reliable platforms, prefer the extracted URL over the stored one
+  // (stored URLs can expire). For others, skip straight to the placeholder.
+  const platform = technique.source_platform?.toLowerCase() ?? '';
+  const isPlatformReliable = platform === 'youtube' || platform === 'vimeo';
 
-  const isRealImage = (url: string | null | undefined): boolean =>
-    !!url && (url.startsWith('http://') || url.startsWith('https://'));
+  const rawThumbnail = isPlatformReliable
+    ? (extractThumbnailFromUrl(technique.video_url) || technique.thumbnail_url)
+    : null;
 
-  const thumbnailSource = isRealImage(rawThumbnail) ? { uri: rawThumbnail! } : null;
+  const thumbnailSource =
+    rawThumbnail && rawThumbnail.startsWith('http')
+      ? { uri: rawThumbnail }
+      : null;
 
   return (
     <Animated.View style={[{ transform: [{ scale }] }, style]}>
