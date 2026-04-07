@@ -97,7 +97,12 @@ export function VideoCard({
   // fetch the og:image server-side via /api/og-image (same as WhatsApp previews).
   useEffect(() => {
     const platform = technique.source_platform?.toLowerCase() ?? '';
-    const needsOg = ['instagram', 'facebook', 'tiktok'].includes(platform);
+    const urlLower = technique.video_url?.toLowerCase() ?? '';
+    const needsOg =
+      ['instagram', 'facebook', 'tiktok'].includes(platform) ||
+      urlLower.includes('instagram.com') ||
+      urlLower.includes('facebook.com') ||
+      urlLower.includes('tiktok.com');
     if (!needsOg || !technique.video_url) return;
 
     let cancelled = false;
@@ -169,10 +174,14 @@ export function VideoCard({
 
   const platform = technique.source_platform?.toLowerCase() ?? '';
 
-  // YouTube/Vimeo: extract directly from URL (always public)
+  // YouTube/Vimeo: extract directly from URL (always public, no network call)
   // Instagram/Facebook/TikTok: use og:image fetched server-side (ogImageUrl state)
+  const urlLower2 = technique.video_url?.toLowerCase() ?? '';
+  const isYouTube = platform === 'youtube' || urlLower2.includes('youtube.com') || urlLower2.includes('youtu.be');
+  const isVimeo = platform === 'vimeo' || urlLower2.includes('vimeo.com');
+
   const resolvedThumbnail = (() => {
-    if (platform === 'youtube' || platform === 'vimeo') {
+    if (isYouTube || isVimeo) {
       return extractThumbnailFromUrl(technique.video_url) || null;
     }
     return ogImageUrl; // set async via /api/og-image
