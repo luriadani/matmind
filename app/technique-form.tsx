@@ -152,16 +152,16 @@ export default function TechniqueForm() {
       };
       if (isEditing && params.techniqueId) {
         await Technique.update(params.techniqueId as string, base);
-        Alert.alert('Saved', 'Technique updated.', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
+        router.replace('/(tabs)');
       } else {
         const own = await Technique.filter({ created_by: user.email });
         if (!canCreateTechnique(subscriptionStatus, own.length)) {
-          Alert.alert('Upgrade required', 'You reached your free technique limit.');
+          Alert.alert('Upgrade required', 'You have reached your free technique limit.');
           router.push('/pricing');
           return;
         }
         await Technique.create({ ...base, created_by: user.email, created_date: new Date().toISOString() });
-        Alert.alert('Saved', 'Technique added.', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
+        router.replace('/(tabs)');
       }
     } catch (error) {
       Alert.alert('Error', `Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`);
