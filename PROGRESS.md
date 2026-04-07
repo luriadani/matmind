@@ -134,6 +134,21 @@ app/technique-form.tsx
 
 ---
 
+## Phase 5 — Payments (branch: `payments`)
+
+| Task | Status | Notes |
+|---|---|---|
+| P5-1 · Update billing constants | ✅ | Free→3 techniques, Yearly→$4.99, Lifetime→$11.99 |
+| P5-2 · Vercel serverless functions | ✅ | `api/create-checkout-session.js`, `api/verify-session.js` |
+| P5-3 · Stripe web client service | ✅ | `services/billing/stripe.ts` |
+| P5-4 · Payment success screen | ✅ | `app/payment-success.tsx` |
+| P5-5 · Pricing screen: web/mobile split | ✅ | Web→Stripe, Mobile→RevenueCat |
+| P5-6 · Stripe account setup + price IDs | ⏳ | User needs to create Stripe account + products |
+| P5-7 · Vercel env vars | ⏳ | `STRIPE_SECRET_KEY`, `STRIPE_YEARLY_PRICE_ID`, `STRIPE_LIFETIME_PRICE_ID` |
+| P5-8 · RevenueCat mobile setup | ⏳ | Needs RC account + App Store/Play Store products |
+
+---
+
 ## Next Steps (Phase 4)
 
 1. Run the app and do a visual walkthrough on a device or simulator
