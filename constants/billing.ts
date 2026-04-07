@@ -1,6 +1,6 @@
 export const BILLING_CONFIG = {
   trialDays: 14,
-  freeTechniqueLimit: 2,
+  freeTechniqueLimit: 3,
   currency: 'USD',
   debugEntitlementOverride: process.env.EXPO_PUBLIC_BILLING_DEBUG_STATE || '',
 } as const;
@@ -21,6 +21,12 @@ export const REVENUECAT_ENTITLEMENTS = {
 export const REVENUECAT_PRODUCT_IDS = {
   yearly: 'matmind_yearly',
   lifetime: 'matmind_lifetime',
+} as const;
+
+// Stripe price IDs — fill in after creating products in Stripe dashboard
+export const STRIPE_PRICE_IDS = {
+  yearly: process.env.EXPO_PUBLIC_STRIPE_YEARLY_PRICE_ID || '',
+  lifetime: process.env.EXPO_PUBLIC_STRIPE_LIFETIME_PRICE_ID || '',
 } as const;
 
 export type CouponDefinition = {
@@ -67,8 +73,8 @@ export const BILLING_PLANS: BillingPlanConfig[] = [
   {
     id: BILLING_PLAN_IDS.yearly,
     name: 'Yearly',
-    basePrice: 79.99,
-    displayPrice: '$79.99',
+    basePrice: 4.99,
+    displayPrice: '$4.99',
     period: 'per year',
     features: [
       'Unlimited techniques',
@@ -84,8 +90,8 @@ export const BILLING_PLANS: BillingPlanConfig[] = [
   {
     id: BILLING_PLAN_IDS.lifetime,
     name: 'Lifetime',
-    basePrice: 199,
-    displayPrice: '$199',
+    basePrice: 11.99,
+    displayPrice: '$11.99',
     period: 'one-time',
     features: [
       'Everything in Yearly',
