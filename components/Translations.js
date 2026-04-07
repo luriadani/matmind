@@ -103,6 +103,7 @@ export const translations = {
     'settings.category_name': 'שם קטגוריה',
     'settings.add_item': 'הוסף פריט',
     'settings.save_changes': 'שמור שינויים',
+    'settings.log_out': 'התנתק',
     'settings.changes_saved': 'השינויים נשמרו בהצלחה',
     
     // Notifications
@@ -328,6 +329,7 @@ export const translations = {
     'settings.category_name': 'Category Name',
     'settings.add_item': 'Add Item',
     'settings.save_changes': 'Save Changes',
+    'settings.log_out': 'Log Out',
     'settings.changes_saved': 'Changes saved successfully',
     
     // Notifications

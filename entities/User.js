@@ -140,6 +140,88 @@ class User {
     console.log('Updating user data:', data);
     return { success: true };
   }
+
+  // ── Auth helpers ──────────────────────────────────────────────
+
+  /** Find a user by email (case-insensitive). Returns null if not found. */
+  async findByEmail(email) {
+    if (!email) return null;
+    const lower = email.toLowerCase().trim();
+    return users.find(u => u.email?.toLowerCase() === lower) || null;
+  }
+
+  /** Hash a password string with SHA-256 via expo-crypto. */
+  async _hashPassword(password) {
+    try {
+      const Crypto = await import('expo-crypto');
+      return await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        password
+      );
+    } catch {
+      // Fallback: simple encoding (should not happen in Expo SDK 54)
+      return btoa(encodeURIComponent(password));
+    }
+  }
+
+  /**
+   * Register a new account.
+   * Throws 'EMAIL_TAKEN' if the email is already in use.
+   * Returns the newly created user.
+   */
+  async createAccount({ email, password, name }) {
+    const existing = await this.findByEmail(email);
+    if (existing) throw new Error('EMAIL_TAKEN');
+
+    const passwordHash = await this._hashPassword(password);
+
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    return this.create({
+      email: email.toLowerCase().trim(),
+      full_name: name.trim(),
+      password_hash: passwordHash,
+      role: 'user',
+      belt: 'white',
+      language: 'en',
+      time_format: '24h',
+      subscription_plan: BILLING_PLAN_IDS.free,
+      subscription_status: 'trial',
+      trial_start_date: now.toISOString(),
+      trial_end_date: trialEnd.toISOString(),
+      notifications_enabled: 'true',
+      notification_minutes_before: '30',
+      custom_technique_categories: 'Try Next Class,Show Coach,Favorite',
+      custom_training_categories: '',
+      custom_belts: 'white,blue,purple,brown,black',
+      dashboard_visible_categories: 'Try Next Class',
+      show_only_next_training_techniques: 'false',
+      gym_id: null,
+      coupon_code: null,
+    });
+  }
+
+  /**
+   * Verify credentials and return the user, or null if invalid.
+   */
+  async login(email, password) {
+    const user = await this.findByEmail(email);
+    if (!user) return null;
+
+    // Demo/legacy users (imported from data/users.ts) have no password_hash.
+    // They cannot log in via the auth flow — only new accounts created via
+    // createAccount() can sign in with a password.
+    if (!user.password_hash) return null;
+
+    const hash = await this._hashPassword(password);
+    if (hash !== user.password_hash) return null;
+
+    return migrateLegacySubscriptionFields({
+      ...user,
+      subscription_plan: user.subscription_plan || BILLING_PLAN_IDS.free,
+    });
+  }
 }
 
 export default new User(); 

@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View
 import BeltManager from '../../components/BeltManager';
 import { useAppContext } from '../../components/Localization';
 import NotificationSettings from '../../components/NotificationSettings';
+import { router } from 'expo-router';
 import { Button } from '../../components/ui/Button';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { SectionHeader } from '../../components/ui/SectionHeader';
@@ -119,7 +120,7 @@ const SettingsRow = ({ label, description = null, control, palette, noBorder = f
 );
 
 export default function Settings() {
-  const { t, settings, updateSettings, user, isLoading: isAppLoading, getTextDirection } = useAppContext();
+  const { t, settings, updateSettings, user, isLoading: isAppLoading, getTextDirection, logout } = useAppContext();
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
 
@@ -377,6 +378,19 @@ export default function Settings() {
           onPress={handleSubmit}
         />
       </View>
+
+      {/* ── Log Out ────────────────────────────────── */}
+      <View style={styles.logoutSection}>
+        <Button
+          label={t('settings.log_out') || 'Log Out'}
+          variant="ghost"
+          size="lg"
+          fullWidth
+          onPress={() => {
+            logout().then(() => router.replace('/login'));
+          }}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -471,6 +485,7 @@ const styles = StyleSheet.create({
 
   // Save section
   saveSection: { gap: 12 },
+  logoutSection: { marginTop: 8, marginBottom: 16 },
   successBanner: {
     flexDirection: 'row',
     alignItems: 'center',

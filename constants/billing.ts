@@ -1,6 +1,6 @@
 export const BILLING_CONFIG = {
   trialDays: 14,
-  freeTechniqueLimit: 3,
+  freeTechniqueLimit: 2,
   currency: 'USD',
   debugEntitlementOverride: process.env.EXPO_PUBLIC_BILLING_DEBUG_STATE || '',
 } as const;

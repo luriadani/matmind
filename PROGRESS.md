@@ -155,14 +155,14 @@ app/technique-form.tsx
 
 | Task | Status | Notes |
 |---|---|---|
-| P6-1 · Free limit 3→2 | ⏳ | `constants/billing.ts` |
-| P6-2 · User entity auth methods | ⏳ | `createAccount`, `login`, `findByEmail` |
-| P6-3 · Login screen | ⏳ | `app/login.tsx` |
-| P6-4 · Register screen | ⏳ | `app/register.tsx` |
-| P6-5 · Auth guard in root layout | ⏳ | `app/_layout.tsx` |
-| P6-6 · Session-based user loading | ⏳ | `components/Localization.js` |
-| P6-7 · Log Out button in Settings | ⏳ | `app/(tabs)/settings.tsx` |
-| P6-8 · New users start empty | ⏳ | `data/techniques.ts` |
+| P6-1 · Free limit 3→2 | ✅ | `constants/billing.ts` |
+| P6-2 · User entity auth methods | ✅ | `createAccount`, `login`, `findByEmail` |
+| P6-3 · Login screen | ✅ | `app/login.tsx` |
+| P6-4 · Register screen | ✅ | `app/register.tsx` |
+| P6-5 · Auth guard in root layout | ✅ | `app/_layout.tsx` |
+| P6-6 · Session-based user loading | ✅ | `components/Localization.js` |
+| P6-7 · Log Out button in Settings | ✅ | `app/(tabs)/settings.tsx` |
+| P6-8 · New users start empty | ✅ | Already works via `created_by` filter |
 
 **Decisions:**
 - Local AsyncStorage only (no cloud backend this phase)
