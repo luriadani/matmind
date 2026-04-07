@@ -12,7 +12,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -82,9 +82,34 @@ export function VideoCard({
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
   const [thumbError, setThumbError] = useState(false);
+  const [ogImageUrl, setOgImageUrl] = useState<string | null>(null);
 
   // Press-to-scale animation
   const scale = useRef(new Animated.Value(1)).current;
+
+  // For platforms without stable CDN thumbnails (Instagram, Facebook, TikTok),
+  // fetch the og:image server-side via /api/og-image (same as WhatsApp previews).
+  useEffect(() => {
+    const platform = technique.source_platform?.toLowerCase() ?? '';
+    const needsOg = ['instagram', 'facebook', 'tiktok'].includes(platform);
+    if (!needsOg || !technique.video_url) return;
+
+    let cancelled = false;
+    const fetchOg = async () => {
+      try {
+        const res = await fetch(
+          `/api/og-image?url=${encodeURIComponent(technique.video_url)}`
+        );
+        if (!res.ok || cancelled) return;
+        const { imageUrl } = await res.json();
+        if (imageUrl && !cancelled) setOgImageUrl(imageUrl);
+      } catch {
+        // Silent fail — placeholder will show
+      }
+    };
+    fetchOg();
+    return () => { cancelled = true; };
+  }, [technique.video_url, technique.source_platform]);
 
   const handlePressIn = () => {
     Animated.spring(scale, {
@@ -136,20 +161,20 @@ export function VideoCard({
     ? `${assignedTraining.dayOfWeek} · ${assignedTraining.time}`
     : null;
 
-  // Only YouTube and Vimeo provide stable, publicly accessible thumbnail URLs.
-  // Instagram/Facebook CDN URLs expire or are CORS-blocked; TikTok has none.
-  // For reliable platforms, prefer the extracted URL over the stored one
-  // (stored URLs can expire). For others, skip straight to the placeholder.
   const platform = technique.source_platform?.toLowerCase() ?? '';
-  const isPlatformReliable = platform === 'youtube' || platform === 'vimeo';
 
-  const rawThumbnail = isPlatformReliable
-    ? (extractThumbnailFromUrl(technique.video_url) || technique.thumbnail_url)
-    : null;
+  // YouTube/Vimeo: extract directly from URL (always public)
+  // Instagram/Facebook/TikTok: use og:image fetched server-side (ogImageUrl state)
+  const resolvedThumbnail = (() => {
+    if (platform === 'youtube' || platform === 'vimeo') {
+      return extractThumbnailFromUrl(technique.video_url) || null;
+    }
+    return ogImageUrl; // set async via /api/og-image
+  })();
 
   const thumbnailSource =
-    rawThumbnail && rawThumbnail.startsWith('http')
-      ? { uri: rawThumbnail }
+    resolvedThumbnail && resolvedThumbnail.startsWith('http') && !thumbError
+      ? { uri: resolvedThumbnail }
       : null;
 
   return (
@@ -169,7 +194,7 @@ export function VideoCard({
       >
         {/* ── Thumbnail ──────────────────────────────────── */}
         <View style={styles.thumbnailWrapper}>
-          {thumbnailSource && !thumbError ? (
+          {thumbnailSource ? (
             <Image
               source={thumbnailSource}
               style={styles.thumbnail}
