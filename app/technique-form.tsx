@@ -70,7 +70,7 @@ export default function TechniqueForm() {
   // Load trainings
   useEffect(() => {
     if (!user) return;
-    Training.filter({ created_by: user.email })
+    Training.filter({ created_by: user.id })
       .then((data) => setTrainings(data as TrainingData[]))
       .catch(console.error);
   }, [user]);
@@ -154,13 +154,13 @@ export default function TechniqueForm() {
         await Technique.update(params.techniqueId as string, base);
         router.replace('/(tabs)');
       } else {
-        const own = await Technique.filter({ created_by: user.email });
+        const own = await Technique.filter({ created_by: user.id });
         if (!canCreateTechnique(subscriptionStatus, own.length)) {
           Alert.alert('Upgrade required', 'You have reached your free technique limit.');
           router.push('/pricing');
           return;
         }
-        await Technique.create({ ...base, created_by: user.email, created_date: new Date().toISOString() });
+        await Technique.create({ ...base, created_by: user.id, created_date: new Date().toISOString() });
         router.replace('/(tabs)');
       }
     } catch (error) {

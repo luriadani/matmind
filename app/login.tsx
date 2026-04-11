@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -13,13 +12,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 import { useAppContext } from '../components/Localization';
 import { Brand, Colors } from '../constants/Colors';
 import { BorderRadius, Spacing } from '../constants/Spacing';
 import { Typography } from '../constants/Typography';
 import { useColorScheme } from '../hooks/useColorScheme';
-
-const SESSION_KEY = 'session_user_email';
 
 export default function LoginScreen() {
   const scheme = useColorScheme() ?? 'dark';
@@ -42,14 +40,15 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const User = (await import('../entities/User')).default;
-      const user = await User.login(trimmedEmail, password);
-      if (!user) {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      });
+      if (authError) {
         setError('Incorrect email or password.');
         return;
       }
-      await AsyncStorage.setItem(SESSION_KEY, user.email);
-      await loadSessionUser(user.email);
+      // onAuthStateChange in Localization.js will update context automatically
       router.replace('/(tabs)');
     } catch (e) {
       setError('Something went wrong. Please try again.');

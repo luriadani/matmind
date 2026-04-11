@@ -50,7 +50,7 @@ export default function Schedule() {
     if (!user) return;
     setIsLoading(true);
     try {
-      const data = await TrainingEntity.filter({ created_by: user.email });
+      const data = await TrainingEntity.filter({ created_by: user.id });
       data.sort((a, b) => {
         const ai = currentDaysOfWeek.indexOf(a.dayOfWeek);
         const bi = currentDaysOfWeek.indexOf(b.dayOfWeek);
@@ -72,15 +72,15 @@ export default function Schedule() {
 
   const handleSaveTraining = async (formData: any) => {
     try {
-      const trainingData = { ...formData, created_by: user?.email || '' };
+      const trainingData = { ...formData, created_by: user?.id || "" };
       if (editingTraining) {
         await TrainingEntity.update(editingTraining.id, trainingData);
       } else {
         await TrainingEntity.create(trainingData);
       }
       if (user?.notifications_enabled === 'true') {
-        const updated = await TrainingEntity.filter({ created_by: user.email });
-        const techniques = await Technique.filter({ created_by: user.email });
+        const updated = await TrainingEntity.filter({ created_by: user.id });
+        const techniques = await Technique.filter({ created_by: user.id });
         await scheduleReminders(techniques, updated);
       }
     } catch (error) {
@@ -101,8 +101,8 @@ export default function Schedule() {
           try {
             await TrainingEntity.delete(id);
             if (user?.notifications_enabled === 'true') {
-              const updated = await TrainingEntity.filter({ created_by: user.email });
-              const techniques = await Technique.filter({ created_by: user.email });
+              const updated = await TrainingEntity.filter({ created_by: user.id });
+              const techniques = await Technique.filter({ created_by: user.id });
               await scheduleReminders(techniques, updated);
             }
           } catch (error: any) {

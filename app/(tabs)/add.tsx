@@ -18,7 +18,7 @@ export default function AddTab() {
           return;
         }
 
-        const ownTechniques = await Technique.filter({ created_by: user.email });
+        const ownTechniques = await Technique.filter({ created_by: user.id });
         if (!canCreateTechnique(subscriptionStatus, ownTechniques.length)) {
           router.replace('/pricing');
           return;

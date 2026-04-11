@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -13,13 +12,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 import { useAppContext } from '../components/Localization';
 import { Brand, Colors } from '../constants/Colors';
 import { BorderRadius, Spacing } from '../constants/Spacing';
 import { Typography } from '../constants/Typography';
 import { useColorScheme } from '../hooks/useColorScheme';
-
-const SESSION_KEY = 'session_user_email';
 
 export default function RegisterScreen() {
   const scheme = useColorScheme() ?? 'dark';
@@ -53,22 +51,24 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      const User = (await import('../entities/User')).default;
-      const newUser = await User.createAccount({
-        email: email.trim(),
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
         password,
-        name: name.trim(),
+        options: { data: { full_name: name.trim() } },
       });
-      await AsyncStorage.setItem(SESSION_KEY, newUser.email);
-      await loadSessionUser(newUser.email);
+      if (authError) {
+        if (authError.message?.toLowerCase().includes('already registered')) {
+          setError('An account with this email already exists.');
+        } else {
+          setError(authError.message || 'Something went wrong.');
+        }
+        return;
+      }
+      // Session is set automatically; onAuthStateChange updates context
       router.replace('/(tabs)');
     } catch (e: any) {
-      if (e?.message === 'EMAIL_TAKEN') {
-        setError('An account with this email already exists.');
-      } else {
-        setError('Something went wrong. Please try again.');
-        console.error('Register error:', e);
-      }
+      setError('Something went wrong. Please try again.');
+      console.error('Register error:', e);
     } finally {
       setLoading(false);
     }

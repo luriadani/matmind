@@ -68,7 +68,7 @@ export default function Dashboard() {
 
   const cleanupTechniques = useCallback(async () => {
     try {
-      const userTechniques = await Technique.filter({ created_by: effectiveUser.email });
+      const userTechniques = await Technique.filter({ created_by: effectiveUser.id });
       for (const technique of userTechniques) {
         const categories = technique.category
           ? technique.category.split(',').map((cat: string) => cat.trim())
@@ -91,11 +91,11 @@ export default function Dashboard() {
     setIsDataLoading(true);
     try {
       const [myTechniques, sharedTechniques, trainingData] = await Promise.all([
-        Technique.filter({ created_by: effectiveUser.email }),
+        Technique.filter({ created_by: effectiveUser.id }),
         effectiveUser.gym_id
           ? Technique.filter({ shared_by_gym_id: effectiveUser.gym_id })
           : Promise.resolve([]),
-        Training.filter({ created_by: effectiveUser.email }),
+        Training.filter({ created_by: effectiveUser.id }),
       ]);
 
       const unique = Array.from(
@@ -127,7 +127,7 @@ export default function Dashboard() {
   const handleDeleteTechnique = async (id: string) => {
     try {
       const target = techniques.find((t: any) => t.id === id);
-      if (target?.created_by !== effectiveUser.email) return;
+      if (target?.created_by !== effectiveUser.id) return;
       await Technique.delete(id);
       setTechniques((prev) => prev.filter((t: any) => t.id !== id));
     } catch (err) {
