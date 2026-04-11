@@ -5,8 +5,12 @@ import { Linking } from 'react-native';
 import { extractVideoTitle, generateTechniqueTitle } from '../utils/videoTitleExtractor';
 import { useAppContext } from './Localization';
 
+// Own domains that should never be treated as share intents
+const OWN_DOMAINS = ['matmind.vercel.app', 'matmind://', 'localhost', '127.0.0.1'];
+const isOwnUrl = (url) => OWN_DOMAINS.some((d) => url.includes(d));
+
 const ShareHandler = () => {
-  const { t, user } = useAppContext();
+  const { t, user, isAuthenticated } = useAppContext();
   const [isReady, setIsReady] = useState(false);
   const hasHandledInitialShare = useRef(false);
 
@@ -29,7 +33,7 @@ const ShareHandler = () => {
       console.log('URL type:', typeof url);
       console.log('URL length:', url?.length);
       
-      if (url && !url.includes('matmind://')) {
+      if (url && !isOwnUrl(url) && isAuthenticated) {
         try {
           // Parse the shared content (now async)
           console.log('📋 Parsing shared content...');
@@ -130,7 +134,7 @@ const ShareHandler = () => {
     // Check for initial shared content
     Linking.getInitialURL().then((url) => {
       console.log('🔍 Initial URL check:', url);
-      if (url && !hasHandledInitialShare.current) {
+      if (url && !isOwnUrl(url) && !hasHandledInitialShare.current) {
         hasHandledInitialShare.current = true;
         handleIncomingShare(url);
       } else if (!url) {
@@ -206,11 +210,6 @@ const ShareHandler = () => {
         type = 'video';
         source_platform = 'direct';
         console.log('✅ Detected direct video file');
-      } else if (cleanUrl.startsWith('http') && !cleanUrl.includes('matmind://')) {
-        platform = 'web';
-        type = 'web';
-        source_platform = 'web';
-        console.log('✅ Detected generic web URL');
       } else {
         console.log('❌ URL format not recognized:', cleanUrl);
         return null;
