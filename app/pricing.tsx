@@ -214,7 +214,7 @@ export default function Pricing() {
   return (
     <View style={[styles.screen, { backgroundColor: palette.background }]}>
       <View style={[styles.header, { borderBottomColor: palette.border }]}>
-        <Pressable style={styles.closeBtn} onPress={() => router.back()}>
+        <Pressable style={styles.closeBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}>
           <Ionicons name="close" size={22} color={palette.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: palette.text }]}>Choose a Plan</Text>
