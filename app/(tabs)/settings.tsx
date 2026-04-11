@@ -13,6 +13,7 @@ import { Brand, Colors } from '../../constants/Colors';
 import { BorderRadius, Spacing } from '../../constants/Spacing';
 import { Typography } from '../../constants/Typography';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useSubscriptionStatus } from '../../components/SubscriptionGuard';
 
 const defaultBelts = ['white', 'blue', 'purple', 'brown', 'black'];
 const defaultTechniqueCategories = ['Try Next Class', 'Show Coach', 'Favorite'];
@@ -121,8 +122,19 @@ const SettingsRow = ({ label, description = null, control, palette, noBorder = f
 
 export default function Settings() {
   const { t, settings, updateSettings, user, isLoading: isAppLoading, getTextDirection, logout } = useAppContext();
+  const { subscriptionStatus } = useSubscriptionStatus();
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
+
+  const planLabel = (() => {
+    if (!subscriptionStatus) return 'Free';
+    if (subscriptionStatus.tier === 'admin') return 'Admin';
+    if (subscriptionStatus.tier === 'paid_lifetime') return 'Lifetime';
+    if (subscriptionStatus.tier === 'paid_yearly') return 'Yearly';
+    if (subscriptionStatus.tier === 'trial_active') return 'Trial';
+    return 'Free';
+  })();
+  const isPremium = subscriptionStatus?.level === 'premium' || subscriptionStatus?.level === 'admin';
 
   const [formData, setFormData] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);
@@ -229,6 +241,36 @@ export default function Settings() {
             palette={palette}
             noBorder
           />
+        </SettingsCard>
+      </View>
+
+      {/* ── Subscription ───────────────────────────── */}
+      <View style={styles.section}>
+        <SectionHeader title="Subscription" style={styles.sectionHeader} />
+        <SettingsCard palette={palette}>
+          <View style={[styles.subscriptionRow, { borderBottomWidth: 0 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>Current Plan</Text>
+              <Text style={[styles.rowDescription, { color: isPremium ? Brand.success : palette.textSecondary }]}>
+                {planLabel}{subscriptionStatus?.expiresAt ? ` · renews ${new Date(subscriptionStatus.expiresAt).toLocaleDateString()}` : ''}
+              </Text>
+            </View>
+            {!isPremium ? (
+              <Button
+                label="Upgrade"
+                variant="primary"
+                size="sm"
+                onPress={() => router.push('/pricing')}
+              />
+            ) : (
+              <Button
+                label="Manage"
+                variant="ghost"
+                size="sm"
+                onPress={() => router.push('/pricing')}
+              />
+            )}
+          </View>
         </SettingsCard>
       </View>
 
@@ -412,6 +454,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: BorderRadius.card,
     overflow: 'hidden',
+  },
+  subscriptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
   },
   settingsRow: {
     flexDirection: 'row',
