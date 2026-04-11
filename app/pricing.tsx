@@ -1,20 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { BILLING_PLANS, BILLING_PLAN_IDS, BillingPlanId } from '@/constants/billing';
-import { trackCouponAttempt, validateCoupon } from '@/services/billing/coupons';
+import React, { useMemo, useState } from 'react';
 import {
-  derivePaidPlanFromCustomerInfo,
-  findStoreProductForPlan,
-  getCurrentOffering,
-  initializeRevenueCat,
-  purchasePlanProduct,
-  restorePurchases,
-  setRevenueCatUser,
-} from '@/services/billing/revenuecat';
-import { startStripeCheckout, isStripeAvailable } from '../services/billing/stripe';
-import { deriveEntitlementState } from '@/services/billing/entitlements';
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { supabase } from '../lib/supabase';
+import { validateCoupon } from '@/services/billing/coupons';
+import { BILLING_PLANS, BILLING_PLAN_IDS, BillingPlanId } from '@/constants/billing';
 import { useAppContext } from '../components/Localization';
 import { Button } from '../components/ui/Button';
 import { Brand, Colors } from '../constants/Colors';
@@ -23,227 +21,212 @@ import { Shadows } from '../constants/Shadows';
 import { Typography } from '../constants/Typography';
 import { useColorScheme } from '../hooks/useColorScheme';
 
-const isWeb = Platform.OS === 'web';
+// Coupon codes shown for testing — remove from production
+const TEST_COUPONS = [
+  { code: 'YEARLY20',   label: '20% off Yearly' },
+  { code: 'LIFETIME15', label: '15% off Lifetime' },
+  { code: 'WELCOME10',  label: '10% off any plan' },
+];
 
 export default function Pricing() {
-  const { t, user, updateUser } = useAppContext();
+  const { user, updateUser } = useAppContext();
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlanId>(BILLING_PLAN_IDS.yearly);
   const [couponCode, setCouponCode] = useState('');
-  const [couponMessage, setCouponMessage] = useState('');
-  const [isCouponValid, setIsCouponValid] = useState(false);
+  const [couponResult, setCouponResult] = useState<any>(null);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [rcInitialized, setRcInitialized] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const selectedPlanConfig = useMemo(
     () => BILLING_PLANS.find((p) => p.id === selectedPlan),
     [selectedPlan]
   );
 
-  // Initialize RevenueCat on mobile only
-  useEffect(() => {
-    if (isWeb) return;
-    const init = async () => {
-      const ok = await initializeRevenueCat(user?.id || user?.email);
-      setRcInitialized(ok);
-      if (ok && user?.id) await setRevenueCatUser(user.id);
-    };
-    init();
-  }, [user?.id, user?.email]);
+  const finalPrice = couponResult?.isValid
+    ? couponResult.discountedPrice
+    : selectedPlanConfig?.basePrice ?? 0;
 
   const handleSelectPlan = (planId: BillingPlanId) => {
     setSelectedPlan(planId);
-    setCouponMessage('');
-    setIsCouponValid(false);
+    setCouponCode('');
+    setCouponResult(null);
   };
 
-  const handleApplyCoupon = async () => {
-    if (!selectedPlanConfig || selectedPlan === BILLING_PLAN_IDS.free) {
-      setCouponMessage('Coupon only available for paid plans.');
-      setIsCouponValid(false);
-      return;
-    }
-    const result = validateCoupon(couponCode, selectedPlan, selectedPlanConfig.basePrice);
-    setIsCouponValid(result.isValid);
-    setCouponMessage(
-      result.isValid
-        ? `${result.coupon.discountPercent}% off — ${selectedPlanConfig.displayPrice} → $${result.discountedPrice}`
-        : result.reason
-    );
-    await trackCouponAttempt({
-      code: couponCode.trim().toUpperCase(),
-      planId: selectedPlan,
-      userId: user?.id,
-      email: user?.email,
-      success: result.isValid,
-      reason: result.isValid ? undefined : result.reason,
-      at: new Date().toISOString(),
-    });
-  };
-
-  const applyPaidEntitlementLocally = (planId: BillingPlanId) => {
-    const now = new Date();
-    const updates =
-      planId === BILLING_PLAN_IDS.lifetime
-        ? {
-            subscription_status: 'lifetime',
-            subscription_plan: BILLING_PLAN_IDS.lifetime,
-            subscription_expiry_date: null,
-            payment_method: 'store',
-          }
-        : {
-            subscription_status: 'active',
-            subscription_plan: BILLING_PLAN_IDS.yearly,
-            subscription_expiry_date: new Date(
-              now.getFullYear() + 1,
-              now.getMonth(),
-              now.getDate()
-            ).toISOString(),
-            payment_method: 'store',
-          };
-    updateUser({
-      ...updates,
-      coupon_code: isCouponValid ? couponCode.trim().toUpperCase() : null,
-      updated_date: now.toISOString(),
-    });
-  };
-
-  // ── Web: Stripe ──────────────────────────────────────────────────────────────
-  const handleWebSubscribe = async () => {
-    if (selectedPlan === BILLING_PLAN_IDS.free) {
-      updateUser({
-        subscription_status: 'expired',
-        subscription_plan: BILLING_PLAN_IDS.free,
-        subscription_expiry_date: null,
-        payment_method: null,
-        updated_date: new Date().toISOString(),
-      });
-      router.back();
-      return;
-    }
-
-    if (!isStripeAvailable()) {
-      Alert.alert(
-        'Payments unavailable',
-        'Stripe is not configured. Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to your environment.'
-      );
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await startStripeCheckout(selectedPlan);
-      // startStripeCheckout redirects the browser — execution stops here on success
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not start checkout.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // ── Mobile: RevenueCat ────────────────────────────────────────────────────────
-  const handleMobileSubscribe = async () => {
+  const handleApplyCoupon = () => {
     if (!selectedPlanConfig) return;
-    setIsProcessing(true);
-    try {
-      if (selectedPlan === BILLING_PLAN_IDS.free) {
-        updateUser({
-          subscription_status: 'expired',
-          subscription_plan: BILLING_PLAN_IDS.free,
+    const result = validateCoupon(couponCode, selectedPlan, selectedPlanConfig.basePrice);
+    setCouponResult(result);
+  };
+
+  const handleQuickCoupon = (code: string) => {
+    setCouponCode(code);
+    if (!selectedPlanConfig) return;
+    const result = validateCoupon(code, selectedPlan, selectedPlanConfig.basePrice);
+    setCouponResult(result);
+  };
+
+  // Persist subscription to Supabase + local context
+  const activateSubscription = async (planId: BillingPlanId) => {
+    if (!user) return;
+    const now = new Date();
+    const isLifetime = planId === BILLING_PLAN_IDS.lifetime;
+
+    const updates = isLifetime
+      ? {
+          subscription_plan: BILLING_PLAN_IDS.lifetime,
+          subscription_status: 'lifetime',
           subscription_expiry_date: null,
-          payment_method: null,
-          updated_date: new Date().toISOString(),
-        });
-        router.back();
-        return;
-      }
-      const offering = await getCurrentOffering();
-      const product = findStoreProductForPlan(offering, selectedPlan);
-      if (!product) {
-        Alert.alert('Unavailable', 'Product not configured in RevenueCat.');
-        return;
-      }
-      const customerInfo = await purchasePlanProduct(product);
-      if (!customerInfo) {
-        Alert.alert('Failed', 'Could not complete purchase.');
-        return;
-      }
-      const paidPlan = derivePaidPlanFromCustomerInfo(customerInfo);
-      if (!paidPlan) {
-        Alert.alert('Pending', 'Purchase complete — activating entitlement.');
-        return;
-      }
-      applyPaidEntitlementLocally(paidPlan);
-      router.back();
-    } catch {
-      Alert.alert('Error', 'Failed to process the purchase.');
-    } finally {
-      setIsProcessing(false);
-    }
+        }
+      : {
+          subscription_plan: BILLING_PLAN_IDS.yearly,
+          subscription_status: 'active',
+          subscription_expiry_date: new Date(
+            now.getFullYear() + 1, now.getMonth(), now.getDate()
+          ).toISOString(),
+        };
+
+    const profileUpdates = {
+      ...updates,
+      coupon_code: couponResult?.isValid ? couponCode.trim().toUpperCase() : null,
+      updated_at: now.toISOString(),
+    };
+
+    // Save to Supabase
+    await supabase.from('profiles').update(profileUpdates).eq('id', user.id);
+
+    // Update local context
+    updateUser({ ...updates, coupon_code: profileUpdates.coupon_code });
   };
 
-  const handleMobileRestore = async () => {
+  const handleConfirmPayment = async () => {
+    if (!selectedPlanConfig || selectedPlan === BILLING_PLAN_IDS.free) return;
     setIsProcessing(true);
     try {
-      const info = await restorePurchases();
-      if (!info) { Alert.alert('Unavailable', 'Could not restore purchases.'); return; }
-      const plan = derivePaidPlanFromCustomerInfo(info);
-      if (!plan) { Alert.alert('Not found', 'No active purchases found.'); return; }
-      applyPaidEntitlementLocally(plan);
-      Alert.alert('Restored', `Restored ${plan} subscription.`);
-    } catch {
-      Alert.alert('Error', 'Failed to restore purchases.');
+      await activateSubscription(selectedPlan);
+      setSuccess(true);
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 2000);
+    } catch (e) {
+      console.error('Payment error:', e);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleSubscribe = isWeb ? handleWebSubscribe : handleMobileSubscribe;
-  const entitlement = deriveEntitlementState(user);
+  // ── Success state ──────────────────────────────────────────────────────────
+  if (success) {
+    return (
+      <View style={[styles.screen, { backgroundColor: palette.background, alignItems: 'center', justifyContent: 'center' }]}>
+        <View style={[styles.successRing, { backgroundColor: Brand.successMuted, borderColor: Brand.success }]}>
+          <Ionicons name="checkmark" size={40} color={Brand.success} />
+        </View>
+        <Text style={[styles.successTitle, { color: palette.text }]}>Payment confirmed!</Text>
+        <Text style={[styles.successSub, { color: palette.textSecondary }]}>
+          {selectedPlan === BILLING_PLAN_IDS.lifetime
+            ? 'Lifetime access activated.'
+            : 'Yearly subscription activated.'}
+        </Text>
+      </View>
+    );
+  }
 
-  const subscribeLabel = () => {
-    if (isProcessing) return 'Processing…';
-    if (selectedPlan === BILLING_PLAN_IDS.free) return 'Use Free Plan';
-    return isWeb ? 'Pay with Stripe' : 'Subscribe Now';
-  };
+  // ── Checkout confirmation ──────────────────────────────────────────────────
+  if (showCheckout && selectedPlanConfig) {
+    return (
+      <View style={[styles.screen, { backgroundColor: palette.background }]}>
+        <View style={[styles.header, { borderBottomColor: palette.border }]}>
+          <Pressable onPress={() => setShowCheckout(false)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={palette.text} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Review Order</Text>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.checkoutContent}>
+          {/* Order summary */}
+          <View style={[styles.orderCard, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <Text style={[styles.orderLabel, { color: palette.textSecondary }]}>ORDER SUMMARY</Text>
+
+            <View style={styles.orderRow}>
+              <Text style={[styles.orderItem, { color: palette.text }]}>{selectedPlanConfig.name} Plan</Text>
+              <Text style={[styles.orderItem, { color: palette.text }]}>{selectedPlanConfig.displayPrice}</Text>
+            </View>
+
+            {couponResult?.isValid && (
+              <View style={styles.orderRow}>
+                <Text style={[styles.orderDiscount, { color: Brand.success }]}>
+                  Coupon {couponCode.toUpperCase()} ({couponResult.coupon.discountPercent}% off)
+                </Text>
+                <Text style={[styles.orderDiscount, { color: Brand.success }]}>
+                  -${(selectedPlanConfig.basePrice - finalPrice).toFixed(2)}
+                </Text>
+              </View>
+            )}
+
+            <View style={[styles.orderDivider, { backgroundColor: palette.border }]} />
+
+            <View style={styles.orderRow}>
+              <Text style={[styles.orderTotal, { color: palette.text }]}>Total</Text>
+              <Text style={[styles.orderTotalPrice, { color: Brand.primary }]}>${finalPrice.toFixed(2)}</Text>
+            </View>
+
+            <Text style={[styles.orderPeriod, { color: palette.textTertiary }]}>
+              {selectedPlan === BILLING_PLAN_IDS.lifetime
+                ? 'One-time payment — never expires'
+                : 'Billed once per year — renews annually'}
+            </Text>
+          </View>
+
+          {/* Features included */}
+          <View style={[styles.orderCard, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <Text style={[styles.orderLabel, { color: palette.textSecondary }]}>WHAT YOU GET</Text>
+            {selectedPlanConfig.features.map((f, i) => (
+              <View key={i} style={styles.featureRow}>
+                <Ionicons name="checkmark-circle" size={16} color={Brand.success} />
+                <Text style={[styles.featureText, { color: palette.text }]}>{f}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Button
+            label={isProcessing ? 'Processing…' : `Pay $${finalPrice.toFixed(2)}`}
+            variant="primary"
+            size="lg"
+            fullWidth
+            loading={isProcessing}
+            onPress={handleConfirmPayment}
+          />
+
+          <Text style={[styles.terms, { color: palette.textTertiary }]}>
+            Payment will be processed securely. By confirming you agree to the terms of service.
+          </Text>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Plan selection ─────────────────────────────────────────────────────────
+  const paidPlans = BILLING_PLANS.filter((p) => p.id !== BILLING_PLAN_IDS.free);
 
   return (
     <View style={[styles.screen, { backgroundColor: palette.background }]}>
-      {/* Header */}
       <View style={[styles.header, { borderBottomColor: palette.border }]}>
         <Pressable style={styles.closeBtn} onPress={() => router.back()}>
           <Ionicons name="close" size={22} color={palette.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: palette.text }]}>
-          {t('pricing.title') || 'Choose a Plan'}
-        </Text>
+        <Text style={[styles.headerTitle, { color: palette.text }]}>Choose a Plan</Text>
         <Text style={[styles.headerSubtitle, { color: palette.textSecondary }]}>
-          {t('pricing.subtitle') || 'Unlock the full MatMind experience'}
+          Unlock the full MatMind experience
         </Text>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Platform badge */}
-        <View style={[styles.platformBadge, { backgroundColor: Brand.primaryMuted }]}>
-          <Ionicons
-            name={isWeb ? 'globe-outline' : 'phone-portrait-outline'}
-            size={13}
-            color={Brand.primary}
-          />
-          <Text style={[styles.platformText, { color: Brand.primary }]}>
-            {isWeb ? 'Payments via Stripe' : 'Payments via App Store / Google Play'}
-          </Text>
-        </View>
-
-        {/* Plan cards */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Plan cards — only paid plans */}
         <View style={styles.plans}>
-          {BILLING_PLANS.map((plan) => {
+          {paidPlans.map((plan) => {
             const isSelected = selectedPlan === plan.id;
             return (
               <Pressable
@@ -258,17 +241,15 @@ export default function Pricing() {
               >
                 {plan.popular && (
                   <View style={[styles.popularBadge, { backgroundColor: Brand.primary }]}>
-                    <Text style={styles.popularText}>{t('pricing.most_popular') || 'Most Popular'}</Text>
+                    <Text style={styles.popularText}>Most Popular</Text>
                   </View>
                 )}
-
                 <View style={styles.planHeader}>
                   <View style={[styles.radioOuter, { borderColor: isSelected ? Brand.primary : palette.border }]}>
                     {isSelected && <View style={[styles.radioInner, { backgroundColor: Brand.primary }]} />}
                   </View>
                   <Text style={[styles.planName, { color: palette.text }]}>{plan.name}</Text>
                 </View>
-
                 <View style={styles.priceRow}>
                   <Text style={[styles.price, { color: isSelected ? Brand.primary : palette.text }]}>
                     {plan.displayPrice}
@@ -277,18 +258,11 @@ export default function Pricing() {
                     {plan.period ? ` / ${plan.period}` : ''}
                   </Text>
                 </View>
-
                 <View style={styles.features}>
                   {plan.features.map((f, i) => (
                     <View key={i} style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle" size={15} color={Brand.success} />
+                      <Ionicons name="checkmark-circle" size={14} color={Brand.success} />
                       <Text style={[styles.featureText, { color: palette.textSecondary }]}>{f}</Text>
-                    </View>
-                  ))}
-                  {plan.limitations?.map((l, i) => (
-                    <View key={i} style={styles.featureRow}>
-                      <Ionicons name="close-circle" size={15} color={Brand.accent} />
-                      <Text style={[styles.featureText, { color: palette.textTertiary }]}>{l}</Text>
                     </View>
                   ))}
                 </View>
@@ -297,80 +271,57 @@ export default function Pricing() {
           })}
         </View>
 
-        {/* Coupon — only for paid plans */}
-        {selectedPlan !== BILLING_PLAN_IDS.free && (
-          <View style={[styles.couponCard, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-            <Text style={[styles.couponLabel, { color: palette.textSecondary }]}>COUPON CODE</Text>
-            <View style={styles.couponRow}>
-              <TextInput
-                style={[
-                  styles.couponInput,
-                  { backgroundColor: palette.surfaceSunken, color: palette.text, borderColor: palette.border },
-                ]}
-                placeholder="e.g. WELCOME10"
-                placeholderTextColor={palette.textTertiary}
-                value={couponCode}
-                autoCapitalize="characters"
-                onChangeText={setCouponCode}
-              />
-              <Button label="Apply" variant="secondary" size="sm" onPress={handleApplyCoupon} />
-            </View>
-            {!!couponMessage && (
-              <Text style={[styles.couponMsg, { color: isCouponValid ? Brand.success : Brand.accent }]}>
-                {isCouponValid && '✓ '}{couponMessage}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Status warnings */}
-        {!isWeb && !rcInitialized && (
-          <View style={[styles.statusCard, { backgroundColor: Brand.warningMuted, borderColor: Brand.warning }]}>
-            <Ionicons name="warning-outline" size={14} color={Brand.warning} />
-            <Text style={[styles.statusText, { color: Brand.warning }]}>
-              RevenueCat not initialized — running in Expo Go or missing API keys.
-            </Text>
-          </View>
-        )}
-        {isWeb && !isStripeAvailable() && (
-          <View style={[styles.statusCard, { backgroundColor: Brand.warningMuted, borderColor: Brand.warning }]}>
-            <Ionicons name="warning-outline" size={14} color={Brand.warning} />
-            <Text style={[styles.statusText, { color: Brand.warning }]}>
-              Stripe not configured — add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to Vercel environment variables.
-            </Text>
-          </View>
-        )}
-
-        {/* Subscribe button */}
-        <View style={styles.footer}>
-          <Button
-            label={subscribeLabel()}
-            variant="primary"
-            size="lg"
-            fullWidth
-            loading={isProcessing}
-            onPress={handleSubscribe}
-          />
-
-          {/* Restore purchases — mobile only */}
-          {!isWeb && (
-            <Button
-              label="Restore purchases"
-              variant="ghost"
-              size="md"
-              fullWidth
-              loading={isProcessing}
-              onPress={handleMobileRestore}
-              style={styles.restoreBtn}
+        {/* Coupon section */}
+        <View style={[styles.couponCard, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <Text style={[styles.couponLabel, { color: palette.textSecondary }]}>COUPON CODE</Text>
+          <View style={styles.couponRow}>
+            <TextInput
+              style={[styles.couponInput, { backgroundColor: palette.surfaceSunken, color: palette.text, borderColor: palette.border }]}
+              placeholder="e.g. YEARLY20"
+              placeholderTextColor={palette.textTertiary}
+              value={couponCode}
+              autoCapitalize="characters"
+              onChangeText={(v) => { setCouponCode(v); setCouponResult(null); }}
             />
+            <Button label="Apply" variant="secondary" size="sm" onPress={handleApplyCoupon} />
+          </View>
+
+          {couponResult && (
+            <Text style={[styles.couponMsg, { color: couponResult.isValid ? Brand.success : Brand.accent }]}>
+              {couponResult.isValid
+                ? `✓ ${couponResult.coupon.discountPercent}% off — ${selectedPlanConfig?.displayPrice} → $${couponResult.discountedPrice}`
+                : couponResult.reason}
+            </Text>
           )}
 
-          <Text style={[styles.terms, { color: palette.textTertiary }]}>
-            {isWeb
-              ? 'Payments processed securely by Stripe. Cancel anytime from your account.'
-              : (t('pricing.terms_text') || 'Subscriptions auto-renew until cancelled. Manage in your device settings.')}
-          </Text>
+          {/* Quick-apply test coupons */}
+          <Text style={[styles.couponHint, { color: palette.textTertiary }]}>Available codes:</Text>
+          <View style={styles.couponChips}>
+            {TEST_COUPONS.map((c) => (
+              <Pressable
+                key={c.code}
+                onPress={() => handleQuickCoupon(c.code)}
+                style={[styles.couponChip, { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary }]}
+              >
+                <Text style={[styles.couponChipCode, { color: Brand.primary }]}>{c.code}</Text>
+                <Text style={[styles.couponChipLabel, { color: palette.textSecondary }]}>{c.label}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
+
+        {/* CTA */}
+        <Button
+          label={`Continue — $${finalPrice.toFixed(2)}`}
+          variant="primary"
+          size="lg"
+          fullWidth
+          onPress={() => setShowCheckout(true)}
+        />
+
+        <Text style={[styles.terms, { color: palette.textTertiary }]}>
+          Secure payment. Cancel or contact us anytime.
+        </Text>
       </ScrollView>
     </View>
   );
@@ -386,131 +337,56 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
   },
-  closeBtn: {
-    position: 'absolute',
-    top: 16,
-    right: Spacing.screenPaddingH,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    ...Typography.titleLarge,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    ...Typography.body,
-    textAlign: 'center',
-  },
+  closeBtn: { position: 'absolute', top: 16, right: Spacing.screenPaddingH },
+  backBtn: { position: 'absolute', top: 16, left: Spacing.screenPaddingH },
+  headerTitle: { ...Typography.titleLarge, textAlign: 'center', marginBottom: 4 },
+  headerSubtitle: { ...Typography.body, textAlign: 'center' },
 
-  scroll: { flex: 1 },
-  scrollContent: {
-    padding: Spacing.screenPaddingH,
-    gap: 16,
-    paddingBottom: 48,
-  },
-
-  platformBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.full,
-  },
-  platformText: {
-    ...Typography.captionMedium,
-  },
+  scrollContent: { padding: Spacing.screenPaddingH, gap: 16, paddingBottom: 48 },
+  checkoutContent: { padding: Spacing.screenPaddingH, gap: 16, paddingBottom: 48 },
 
   plans: { gap: 12 },
-  planCard: {
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.lg,
-    padding: 16,
-    position: 'relative',
-    overflow: 'visible',
-  },
+  planCard: { borderWidth: 1.5, borderRadius: BorderRadius.lg, padding: 16, position: 'relative', overflow: 'visible' },
   planCardSelected: { borderWidth: 2 },
-  popularBadge: {
-    position: 'absolute',
-    top: -11,
-    alignSelf: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-  },
+  popularBadge: { position: 'absolute', top: -11, alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 3, borderRadius: BorderRadius.full },
   popularText: { ...Typography.captionMedium, color: '#FFF' },
-  planHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  planHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioInner: { width: 10, height: 10, borderRadius: 5 },
   planName: { ...Typography.bodySemibold },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 2,
-    marginBottom: 12,
-    marginLeft: 30,
-  },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2, marginBottom: 12, marginLeft: 30 },
   price: { ...Typography.displayLarge },
   period: { ...Typography.body },
   features: { gap: 6, marginLeft: 30 },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   featureText: { ...Typography.small, flex: 1 },
 
-  couponCard: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    padding: 14,
-    gap: 10,
-  },
-  couponLabel: {
-    ...Typography.micro,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
+  couponCard: { borderWidth: 1, borderRadius: BorderRadius.md, padding: 14, gap: 10 },
+  couponLabel: { ...Typography.micro, textTransform: 'uppercase', letterSpacing: 0.8 },
   couponRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  couponInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: BorderRadius.input,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    ...Typography.body,
-  },
+  couponInput: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.input, paddingHorizontal: 12, paddingVertical: 9, ...Typography.body },
   couponMsg: { ...Typography.small },
+  couponHint: { ...Typography.caption, marginTop: 4 },
+  couponChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  couponChip: { borderWidth: 1, borderRadius: BorderRadius.sm, paddingHorizontal: 10, paddingVertical: 6 },
+  couponChipCode: { ...Typography.smallMedium, fontWeight: '700' },
+  couponChipLabel: { ...Typography.caption },
 
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    padding: 10,
-  },
-  statusText: { ...Typography.caption, flex: 1 },
+  terms: { ...Typography.caption, textAlign: 'center', lineHeight: 18 },
 
-  footer: { gap: 8, marginTop: 8 },
-  restoreBtn: { marginTop: 2 },
-  terms: {
-    ...Typography.caption,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 18,
-  },
+  // Order summary
+  orderCard: { borderWidth: 1, borderRadius: BorderRadius.card, padding: 16, gap: 12 },
+  orderLabel: { ...Typography.micro, textTransform: 'uppercase', letterSpacing: 0.8 },
+  orderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  orderItem: { ...Typography.body },
+  orderDiscount: { ...Typography.body },
+  orderDivider: { height: StyleSheet.hairlineWidth },
+  orderTotal: { ...Typography.bodyMedium, fontWeight: '700' },
+  orderTotalPrice: { ...Typography.titleLarge, fontWeight: '700' },
+  orderPeriod: { ...Typography.caption, textAlign: 'center' },
+
+  // Success
+  successRing: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  successTitle: { ...Typography.titleLarge, fontWeight: '700', marginBottom: 8 },
+  successSub: { ...Typography.body, textAlign: 'center' },
 });
