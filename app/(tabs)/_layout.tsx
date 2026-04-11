@@ -1,6 +1,6 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import React, { useRef } from 'react';
-import { Animated, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Animated, Platform, StyleSheet, View } from 'react-native';
 import { useAppContext } from '../../components/Localization';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/HapticTab';
@@ -71,7 +71,21 @@ export default function TabLayout() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
   const insets = useSafeAreaInsets();
-  const { t } = useAppContext();
+  const { t, isLoading, isAuthenticated } = useAppContext();
+
+  // While session is being checked, show a spinner
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.background }}>
+        <ActivityIndicator size="large" color={Brand.primary} />
+      </View>
+    );
+  }
+
+  // No active session → go to login
+  if (!isAuthenticated) {
+    return <Redirect href="/login" />;
+  }
 
   return (
     <Tabs

@@ -3,28 +3,15 @@ import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
-import { router, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { AppProvider, useAppContext } from '../components/Localization';
+import { AppProvider } from '../components/Localization';
 import { RTLWrapper } from '../components/RTLWrapper';
 import ShareHandler from '../components/ShareHandler';
-
-/** Redirects to /login when no session is active. Must be inside AppProvider. */
-function AuthGuard() {
-  const { isLoading, isAuthenticated } = useAppContext();
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace('/login');
-    }
-  }, [isLoading, isAuthenticated]);
-
-  return null;
-}
 
 // Check if running in Expo Go
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -107,7 +94,6 @@ export default function RootLayout() {
     <AppProvider>
       <RTLWrapper>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AuthGuard />
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
