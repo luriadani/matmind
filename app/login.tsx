@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   appName: {
-    ...Typography.displaySmall,
+    ...Typography.titleLarge,
     fontWeight: '700',
   },
   tagline: {
