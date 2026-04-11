@@ -1,5 +1,5 @@
 export const BILLING_CONFIG = {
-  trialDays: 14,
+  trialDays: 0, // set to 14 when going live
   freeTechniqueLimit: 2,
   currency: 'USD',
   debugEntitlementOverride: process.env.EXPO_PUBLIC_BILLING_DEBUG_STATE || '',
