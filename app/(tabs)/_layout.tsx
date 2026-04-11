@@ -71,7 +71,8 @@ export default function TabLayout() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
   const insets = useSafeAreaInsets();
-  const { t, isLoading, isAuthenticated } = useAppContext();
+  const { t, isLoading, isAuthenticated, user } = useAppContext();
+  const isAdmin = user?.role === 'admin';
 
   // While session is being checked, show a spinner
   if (isLoading) {
@@ -149,6 +150,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="person.2.fill" color={color} focused={focused} size={24} />
           ),
+          href: isAdmin ? undefined : null,
         }}
       />
     </Tabs>
