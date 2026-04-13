@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { validateCoupon } from '@/services/billing/coupons';
+import { validateCoupon, fetchCoupons, CouponRow } from '@/services/billing/coupons';
 import { BILLING_PLANS, BILLING_PLAN_IDS, BillingPlanId } from '@/constants/billing';
 import { useAppContext } from '../components/Localization';
 import { Button } from '../components/ui/Button';
@@ -21,13 +21,6 @@ import { Shadows } from '../constants/Shadows';
 import { Typography } from '../constants/Typography';
 import { useColorScheme } from '../hooks/useColorScheme';
 
-// Coupon codes shown for testing — remove from production
-const TEST_COUPONS = [
-  { code: 'YEARLY20',   label: '20% off Yearly' },
-  { code: 'LIFETIME15', label: '15% off Lifetime' },
-  { code: 'WELCOME10',  label: '10% off any plan' },
-  { code: 'FOUNDER',    label: '100% off — Free' },
-];
 
 export default function Pricing() {
   const { user, updateUser } = useAppContext();
@@ -40,6 +33,11 @@ export default function Pricing() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [coupons, setCoupons] = useState<CouponRow[]>([]);
+
+  useEffect(() => {
+    fetchCoupons().then(setCoupons).catch(() => {});
+  }, []);
 
   const selectedPlanConfig = useMemo(
     () => BILLING_PLANS.find((p) => p.id === selectedPlan),
@@ -58,14 +56,14 @@ export default function Pricing() {
 
   const handleApplyCoupon = () => {
     if (!selectedPlanConfig) return;
-    const result = validateCoupon(couponCode, selectedPlan, selectedPlanConfig.basePrice);
+    const result = validateCoupon(couponCode, selectedPlan, selectedPlanConfig.basePrice, coupons);
     setCouponResult(result);
   };
 
   const handleQuickCoupon = (code: string) => {
     setCouponCode(code);
     if (!selectedPlanConfig) return;
-    const result = validateCoupon(code, selectedPlan, selectedPlanConfig.basePrice);
+    const result = validateCoupon(code, selectedPlan, selectedPlanConfig.basePrice, coupons);
     setCouponResult(result);
   };
 
@@ -159,7 +157,7 @@ export default function Pricing() {
             {couponResult?.isValid && (
               <View style={styles.orderRow}>
                 <Text style={[styles.orderDiscount, { color: Brand.success }]}>
-                  Coupon {couponCode.toUpperCase()} ({couponResult.coupon.discountPercent}% off)
+                  Coupon {couponCode.toUpperCase()} ({couponResult.coupon.discount_percent}% off)
                 </Text>
                 <Text style={[styles.orderDiscount, { color: Brand.success }]}>
                   -${(selectedPlanConfig.basePrice - finalPrice).toFixed(2)}
@@ -290,25 +288,33 @@ export default function Pricing() {
           {couponResult && (
             <Text style={[styles.couponMsg, { color: couponResult.isValid ? Brand.success : Brand.accent }]}>
               {couponResult.isValid
-                ? `✓ ${couponResult.coupon.discountPercent}% off — ${selectedPlanConfig?.displayPrice} → $${couponResult.discountedPrice}`
+                ? `✓ ${couponResult.coupon.discount_percent}% off — ${selectedPlanConfig?.displayPrice} → $${couponResult.discountedPrice}`
                 : couponResult.reason}
             </Text>
           )}
 
-          {/* Quick-apply test coupons */}
-          <Text style={[styles.couponHint, { color: palette.textTertiary }]}>Available codes:</Text>
-          <View style={styles.couponChips}>
-            {TEST_COUPONS.map((c) => (
-              <Pressable
-                key={c.code}
-                onPress={() => handleQuickCoupon(c.code)}
-                style={[styles.couponChip, { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary }]}
-              >
-                <Text style={[styles.couponChipCode, { color: Brand.primary }]}>{c.code}</Text>
-                <Text style={[styles.couponChipLabel, { color: palette.textSecondary }]}>{c.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {/* Active coupons as quick-apply chips */}
+          {coupons.filter((c) => c.active && c.applies_to.includes(selectedPlan)).length > 0 && (
+            <>
+              <Text style={[styles.couponHint, { color: palette.textTertiary }]}>Available codes:</Text>
+              <View style={styles.couponChips}>
+                {coupons
+                  .filter((c) => c.active && c.applies_to.includes(selectedPlan))
+                  .map((c) => (
+                    <Pressable
+                      key={c.code}
+                      onPress={() => handleQuickCoupon(c.code)}
+                      style={[styles.couponChip, { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary }]}
+                    >
+                      <Text style={[styles.couponChipCode, { color: Brand.primary }]}>{c.code}</Text>
+                      <Text style={[styles.couponChipLabel, { color: palette.textSecondary }]}>
+                        {c.discount_percent === 100 ? 'Free' : `${c.discount_percent}% off`}
+                      </Text>
+                    </Pressable>
+                  ))}
+              </View>
+            </>
+          )}
         </View>
 
         {/* CTA */}

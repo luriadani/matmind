@@ -1,78 +1,82 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BILLING_COUPONS, BillingPlanId, CouponDefinition } from '@/constants/billing';
+import { supabase } from '@/lib/supabase';
+import { BillingPlanId } from '@/constants/billing';
 
-const COUPON_AUDIT_KEY = 'billing_coupon_audit_v1';
-
-type CouponAuditEvent = {
+export type CouponRow = {
   code: string;
-  planId: BillingPlanId;
-  userId?: string;
-  email?: string;
-  success: boolean;
-  reason?: string;
-  at: string;
+  discount_percent: number;
+  applies_to: string[];
+  active: boolean;
+  description: string | null;
+  expires_at: string | null;
+  max_redemptions: number | null;
 };
 
-type CouponValidationResult =
-  | { isValid: true; coupon: CouponDefinition; discountedPrice: number }
+export type CouponValidationResult =
+  | { isValid: true; coupon: CouponRow; discountedPrice: number }
   | { isValid: false; reason: string };
 
-const normalizeCode = (code: string): string => code.trim().toUpperCase();
+// ── Supabase CRUD ─────────────────────────────────────────────────────────────
 
-const isExpired = (expiresAt?: string): boolean => {
-  if (!expiresAt) return false;
-  const expiresDate = new Date(expiresAt);
-  if (Number.isNaN(expiresDate.getTime())) return false;
-  return expiresDate.getTime() <= Date.now();
+export const fetchCoupons = async (): Promise<CouponRow[]> => {
+  const { data, error } = await supabase
+    .from('coupons')
+    .select('*')
+    .order('code');
+  if (error) throw error;
+  return data ?? [];
 };
+
+export const toggleCoupon = async (code: string, active: boolean): Promise<void> => {
+  const { error } = await supabase
+    .from('coupons')
+    .update({ active })
+    .eq('code', code);
+  if (error) throw error;
+};
+
+export const deleteCoupon = async (code: string): Promise<void> => {
+  const { error } = await supabase
+    .from('coupons')
+    .delete()
+    .eq('code', code);
+  if (error) throw error;
+};
+
+export const createCoupon = async (coupon: Omit<CouponRow, 'expires_at' | 'max_redemptions'> & { expires_at?: string; max_redemptions?: number }): Promise<void> => {
+  const { error } = await supabase
+    .from('coupons')
+    .insert(coupon);
+  if (error) throw error;
+};
+
+// ── Validation ────────────────────────────────────────────────────────────────
 
 export const validateCoupon = (
   code: string,
   planId: BillingPlanId,
-  basePrice: number
+  basePrice: number,
+  coupons: CouponRow[]
 ): CouponValidationResult => {
-  const couponCode = normalizeCode(code);
-  if (!couponCode) {
-    return { isValid: false, reason: 'Coupon code is empty.' };
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return { isValid: false, reason: 'Coupon code is empty.' };
+
+  const coupon = coupons.find((c) => c.code === normalized);
+  if (!coupon) return { isValid: false, reason: 'Coupon code is invalid.' };
+  if (!coupon.active) return { isValid: false, reason: 'Coupon is inactive.' };
+
+  if (coupon.expires_at) {
+    const exp = new Date(coupon.expires_at);
+    if (!isNaN(exp.getTime()) && exp.getTime() <= Date.now()) {
+      return { isValid: false, reason: 'Coupon has expired.' };
+    }
   }
 
-  const coupon = BILLING_COUPONS.find((item) => item.code === couponCode);
-  if (!coupon) {
-    return { isValid: false, reason: 'Coupon code is invalid.' };
-  }
-
-  if (!coupon.active) {
-    return { isValid: false, reason: 'Coupon is inactive.' };
-  }
-
-  if (isExpired(coupon.expiresAt)) {
-    return { isValid: false, reason: 'Coupon has expired.' };
-  }
-
-  if (!coupon.appliesTo.includes(planId)) {
+  if (!coupon.applies_to.includes(planId)) {
     return { isValid: false, reason: 'Coupon does not apply to this plan.' };
   }
 
-  const discountedPrice = Number((basePrice * (1 - coupon.discountPercent / 100)).toFixed(2));
+  const discountedPrice = Number(
+    (basePrice * (1 - coupon.discount_percent / 100)).toFixed(2)
+  );
   return { isValid: true, coupon, discountedPrice };
-};
-
-const readAuditEvents = async (): Promise<CouponAuditEvent[]> => {
-  try {
-    const raw = await AsyncStorage.getItem(COUPON_AUDIT_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (error) {
-    console.error('Failed to read coupon audit trail:', error);
-    return [];
-  }
-};
-
-export const trackCouponAttempt = async (event: CouponAuditEvent): Promise<void> => {
-  try {
-    const current = await readAuditEvents();
-    current.push(event);
-    await AsyncStorage.setItem(COUPON_AUDIT_KEY, JSON.stringify(current.slice(-200)));
-  } catch (error) {
-    console.error('Failed to write coupon audit trail:', error);
-  }
 };
