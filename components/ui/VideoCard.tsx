@@ -89,6 +89,7 @@ export function VideoCard({
   const palette = Colors[scheme];
   const [thumbError, setThumbError] = useState(false);
   const [ogImageUrl, setOgImageUrl] = useState<string | null>(null);
+  const [ogLoading, setOgLoading] = useState(false);
 
   // Press-to-scale animation
   const scale = useRef(new Animated.Value(1)).current;
@@ -107,6 +108,7 @@ export function VideoCard({
 
     let cancelled = false;
     const fetchOg = async () => {
+      setOgLoading(true);
       try {
         const res = await fetch(
           `${OG_IMAGE_API}?url=${encodeURIComponent(technique.video_url)}`
@@ -116,6 +118,8 @@ export function VideoCard({
         if (imageUrl && !cancelled) setOgImageUrl(imageUrl);
       } catch {
         // Silent fail — placeholder will show
+      } finally {
+        if (!cancelled) setOgLoading(false);
       }
     };
     fetchOg();
@@ -216,6 +220,12 @@ export function VideoCard({
               resizeMode="cover"
               onError={() => setThumbError(true)}
             />
+          ) : ogLoading ? (
+            <View style={[styles.thumbnail, styles.thumbnailPlaceholder, { backgroundColor: Media.thumbnailPlaceholderBg }]}>
+              <View style={styles.placeholderIconRing}>
+                <Ionicons name="hourglass-outline" size={22} color="rgba(255,255,255,0.5)" />
+              </View>
+            </View>
           ) : (
             <View style={[styles.thumbnail, styles.thumbnailPlaceholder, { backgroundColor: Media.thumbnailPlaceholderBg }]}>
               <View style={styles.placeholderIconRing}>
