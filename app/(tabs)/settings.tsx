@@ -14,6 +14,7 @@ import { BorderRadius, Spacing } from '../../constants/Spacing';
 import { Typography } from '../../constants/Typography';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { useSubscriptionStatus } from '../../components/SubscriptionGuard';
+import { CategoryBadge } from '../../components/ui/CategoryBadge';
 
 const defaultBelts = ['white', 'blue', 'purple', 'brown', 'black'];
 const defaultTechniqueCategories = ['Try Next Class', 'Show Coach', 'Favorite'];
@@ -218,7 +219,7 @@ export default function Settings() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: palette.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { direction: isRTL ? 'rtl' : 'ltr' } as any]}
       showsVerticalScrollIndicator={false}
     >
       <ScreenHeader
@@ -349,26 +350,27 @@ export default function Settings() {
         <SectionHeader title={t('settings.dashboard_categories_title') || 'Visible categories'} style={styles.sectionHeader} />
         <SettingsCard palette={palette}>
           {customTechniqueCategories.map((cat, i) => (
-            <SettingsRow
+            <View
               key={cat}
-              label={cat}
-              control={
-                <View style={isRTL ? { transform: [{ scaleX: -1 }] } : {}}>
-                  <Switch
-                    value={visibleCategories.includes(cat)}
-                    onValueChange={(v) =>
-                      setVisibleCategories((prev) =>
-                        v ? [...prev, cat] : prev.filter((c) => c !== cat)
-                      )
-                    }
-                    trackColor={{ false: palette.border, true: Brand.primary }}
-                    thumbColor="#FFFFFF"
-                  />
-                </View>
-              }
-              palette={palette}
-              noBorder={i === customTechniqueCategories.length - 1}
-            />
+              style={[
+                styles.settingsRow,
+                i === customTechniqueCategories.length - 1 ? {} : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+              ]}
+            >
+              <CategoryBadge category={cat} variant="filled" />
+              <View style={isRTL ? { transform: [{ scaleX: -1 }] } : {}}>
+                <Switch
+                  value={visibleCategories.includes(cat)}
+                  onValueChange={(v) =>
+                    setVisibleCategories((prev) =>
+                      v ? [...prev, cat] : prev.filter((c) => c !== cat)
+                    )
+                  }
+                  trackColor={{ false: palette.border, true: Brand.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </View>
           ))}
         </SettingsCard>
       </View>

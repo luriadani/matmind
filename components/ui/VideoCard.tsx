@@ -304,19 +304,19 @@ export function VideoCard({
               {onUpdate && (
                 <Pressable
                   onPress={handleEdit}
-                  style={[styles.actionBtn, { backgroundColor: palette.surfaceSunken }]}
+                  style={[styles.actionBtn, { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary }]}
                   hitSlop={8}
                 >
-                  <Ionicons name="create-outline" size={15} color={Brand.primary} />
+                  <Ionicons name="create-outline" size={17} color={Brand.primary} />
                 </Pressable>
               )}
               {onDelete && (
                 <Pressable
                   onPress={handleDelete}
-                  style={[styles.actionBtn, { backgroundColor: palette.surfaceSunken }]}
+                  style={[styles.actionBtn, { backgroundColor: Brand.accentMuted, borderColor: Brand.accent }]}
                   hitSlop={8}
                 >
-                  <Ionicons name="trash-outline" size={15} color={Brand.accent} />
+                  <Ionicons name="trash-outline" size={17} color={Brand.accent} />
                 </Pressable>
               )}
             </View>
@@ -435,9 +435,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionBtn: {
-    width: 30,
-    height: 30,
+    width: 34,
+    height: 34,
     borderRadius: BorderRadius.sm,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
