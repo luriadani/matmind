@@ -135,7 +135,6 @@ export default function Settings() {
     return 'Free';
   })();
   const isPremium = subscriptionStatus?.level === 'premium' || subscriptionStatus?.level === 'admin';
-  const isRTL = formData?.language === 'he';
 
   const [formData, setFormData] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);
@@ -144,6 +143,8 @@ export default function Settings() {
   const [customTechniqueCategories, setCustomTechniqueCategories] = useState<string[]>([]);
   const [customBelts, setCustomBelts] = useState<string[]>([]);
   const [visibleCategories, setVisibleCategories] = useState<string[]>([]);
+
+  const isRTL = formData?.language === 'he';
 
   const getArray = (val) => {
     if (!val) return [];
