@@ -26,6 +26,7 @@ const TEST_COUPONS = [
   { code: 'YEARLY20',   label: '20% off Yearly' },
   { code: 'LIFETIME15', label: '15% off Lifetime' },
   { code: 'WELCOME10',  label: '10% off any plan' },
+  { code: 'FOUNDER',    label: '100% off — Free' },
 ];
 
 export default function Pricing() {
@@ -192,7 +193,7 @@ export default function Pricing() {
           </View>
 
           <Button
-            label={isProcessing ? 'Processing…' : `Pay $${finalPrice.toFixed(2)}`}
+            label={isProcessing ? 'Processing…' : finalPrice === 0 ? 'Activate Free Access' : `Pay $${finalPrice.toFixed(2)}`}
             variant="primary"
             size="lg"
             fullWidth
@@ -312,7 +313,7 @@ export default function Pricing() {
 
         {/* CTA */}
         <Button
-          label={`Continue — $${finalPrice.toFixed(2)}`}
+          label={finalPrice === 0 ? 'Activate Free Access' : `Continue — $${finalPrice.toFixed(2)}`}
           variant="primary"
           size="lg"
           fullWidth

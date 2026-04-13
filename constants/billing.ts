@@ -123,6 +123,12 @@ export const BILLING_COUPONS: CouponDefinition[] = [
     appliesTo: [BILLING_PLAN_IDS.lifetime],
     active: true,
   },
+  {
+    code: 'FOUNDER',
+    discountPercent: 100,
+    appliesTo: [BILLING_PLAN_IDS.yearly, BILLING_PLAN_IDS.lifetime],
+    active: true,
+  },
 ];
 
 export type BillingTier = 'trial_active' | 'free_limited' | 'paid_yearly' | 'paid_lifetime' | 'admin';
