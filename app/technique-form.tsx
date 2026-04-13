@@ -243,7 +243,7 @@ export default function TechniqueForm() {
         {/* ── Category ──────────────────────────────── */}
         <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
-            {(t('add_technique.tags_label') || 'Category').toUpperCase()}
+            {(t('add_technique.categories_label') || 'Categories').toUpperCase()}
           </Text>
           <View style={styles.pillRow}>
             {allCategories.map((cat) => (
@@ -314,18 +314,6 @@ export default function TechniqueForm() {
             )}
           </View>
         )}
-
-        {/* ── Tags ──────────────────────────────────── */}
-        <View style={styles.field}>
-          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>TAGS</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: palette.surfaceSunken, borderColor: palette.border, color: palette.text }]}
-            value={formData.tags}
-            onChangeText={(v) => setFormData((p) => ({ ...p, tags: v }))}
-            placeholder="e.g. submission, guard, gi"
-            placeholderTextColor={palette.textTertiary}
-          />
-        </View>
 
         {/* ── Notes ─────────────────────────────────── */}
         <View style={styles.field}>

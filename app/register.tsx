@@ -31,6 +31,7 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const validate = () => {
     if (!name.trim()) return 'Please enter your name.';
@@ -64,8 +65,9 @@ export default function RegisterScreen() {
         }
         return;
       }
-      // Session is set automatically; onAuthStateChange updates context
-      router.replace('/(tabs)');
+      // Show success message then navigate
+      setRegistered(true);
+      setTimeout(() => router.replace('/(tabs)'), 1800);
     } catch (e: any) {
       setError('Something went wrong. Please try again.');
       console.error('Register error:', e);
@@ -73,6 +75,18 @@ export default function RegisterScreen() {
       setLoading(false);
     }
   };
+
+  if (registered) {
+    return (
+      <View style={[styles.root, { backgroundColor: palette.background, alignItems: 'center', justifyContent: 'center', gap: 16 }]}>
+        <View style={[styles.logoRing, { backgroundColor: Brand.successMuted, borderColor: Brand.success }]}>
+          <Ionicons name="checkmark" size={36} color={Brand.success} />
+        </View>
+        <Text style={[styles.appName, { color: palette.text }]}>Welcome to MatMind!</Text>
+        <Text style={[styles.tagline, { color: palette.textSecondary }]}>Account created. Taking you in…</Text>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView

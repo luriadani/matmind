@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from './Localization';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { Brand, Colors } from '../constants/Colors';
@@ -11,21 +11,32 @@ const NotificationManager = () => {
   const { t } = useAppContext();
   const scheme = useColorScheme() ?? 'dark';
   const palette = Colors[scheme];
-  const [permission, setPermission] = useState('default');
+  const [permission, setPermission] = useState('unknown');
 
   useEffect(() => {
-    setPermission('default');
+    if (Platform.OS !== 'web') {
+      setPermission('not-supported');
+      return;
+    }
+    if (!('Notification' in window)) {
+      setPermission('not-supported');
+      return;
+    }
+    setPermission(Notification.permission); // 'granted' | 'denied' | 'default'
   }, []);
 
   const requestPermission = async () => {
+    if (Platform.OS !== 'web' || !('Notification' in window)) return;
     try {
-      setPermission('granted');
+      const result = await Notification.requestPermission();
+      setPermission(result);
     } catch (error) {
       console.error('Error requesting notification permission:', error);
     }
   };
 
-  if (permission === 'granted' || permission === 'not-supported') {
+  // Hide if already granted, denied (user said no — don't nag), or not supported
+  if (permission === 'granted' || permission === 'denied' || permission === 'not-supported' || permission === 'unknown') {
     return null;
   }
 

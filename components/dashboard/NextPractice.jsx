@@ -4,6 +4,7 @@ import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'r
 import { formatTime, parseArray } from '../../utils/formatters';
 import { useAppContext } from '../Localization';
 import PlatformIcon from '../PlatformIcon';
+import { CategoryBadge } from '../ui/CategoryBadge';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { Brand, Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -147,11 +148,11 @@ const NextPractice = ({ trainings, techniques, onTechniqueDelete, onTechniqueUpd
                     {technique.title}
                   </Text>
                   {technique.category && (
-                    <View style={[styles.catPill, { backgroundColor: Brand.primaryMuted }]}>
-                      <Text style={[styles.catPillText, { color: Brand.primary }]} numberOfLines={1}>
-                        {parseArray(technique.category)[0]}
-                      </Text>
-                    </View>
+                    <CategoryBadge
+                      category={parseArray(technique.category)[0]}
+                      variant="filled"
+                      compact
+                    />
                   )}
                   <TouchableOpacity
                     onPress={() => onTechniqueDelete(technique.id)}

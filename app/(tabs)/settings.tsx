@@ -135,6 +135,7 @@ export default function Settings() {
     return 'Free';
   })();
   const isPremium = subscriptionStatus?.level === 'premium' || subscriptionStatus?.level === 'admin';
+  const isRTL = formData?.language === 'he';
 
   const [formData, setFormData] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);
@@ -327,12 +328,14 @@ export default function Settings() {
             label={t('settings.show_only_next_training') || 'Next training only'}
             description={t('settings.show_only_next_training_description') || 'Show techniques for your next scheduled session'}
             control={
-              <Switch
-                value={formData.show_only_next_training_techniques}
-                onValueChange={(v) => handleChange('show_only_next_training_techniques', v)}
-                trackColor={{ false: palette.border, true: Brand.primary }}
-                thumbColor="#FFFFFF"
-              />
+              <View style={isRTL ? { transform: [{ scaleX: -1 }] } : {}}>
+                <Switch
+                  value={formData.show_only_next_training_techniques}
+                  onValueChange={(v) => handleChange('show_only_next_training_techniques', v)}
+                  trackColor={{ false: palette.border, true: Brand.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
             }
             palette={palette}
             noBorder
@@ -349,16 +352,18 @@ export default function Settings() {
               key={cat}
               label={cat}
               control={
-                <Switch
-                  value={visibleCategories.includes(cat)}
-                  onValueChange={(v) =>
-                    setVisibleCategories((prev) =>
-                      v ? [...prev, cat] : prev.filter((c) => c !== cat)
-                    )
-                  }
-                  trackColor={{ false: palette.border, true: Brand.primary }}
-                  thumbColor="#FFFFFF"
-                />
+                <View style={isRTL ? { transform: [{ scaleX: -1 }] } : {}}>
+                  <Switch
+                    value={visibleCategories.includes(cat)}
+                    onValueChange={(v) =>
+                      setVisibleCategories((prev) =>
+                        v ? [...prev, cat] : prev.filter((c) => c !== cat)
+                      )
+                    }
+                    trackColor={{ false: palette.border, true: Brand.primary }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
               }
               palette={palette}
               noBorder={i === customTechniqueCategories.length - 1}
