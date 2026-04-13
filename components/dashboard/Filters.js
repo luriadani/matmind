@@ -3,7 +3,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from '../Localization';
 import { useColorScheme } from '../../hooks/useColorScheme';
-import { Brand, Colors } from '../../constants/Colors';
+import { Brand, CategoryColors, Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { BorderRadius, Spacing } from '../../constants/Spacing';
 
@@ -89,17 +89,19 @@ const Filters = ({ filters, onFilterChange }) => {
 
           {availableCategories.map(category => {
             const active = filters.categories.includes(category);
+            const catColor = CategoryColors[category] ?? CategoryColors.default;
             return (
               <TouchableOpacity
                 key={category}
                 style={[
                   styles.pill,
-                  { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
-                  active && { backgroundColor: Brand.primaryMuted, borderColor: Brand.primary },
+                  active
+                    ? { backgroundColor: catColor.background, borderColor: catColor.border }
+                    : { backgroundColor: palette.surfaceSunken, borderColor: palette.border },
                 ]}
                 onPress={() => handleCategoryToggle(category)}
               >
-                <Text style={[styles.pillText, { color: active ? Brand.primary : palette.textSecondary }]}>
+                <Text style={[styles.pillText, { color: active ? catColor.text : palette.textSecondary }]}>
                   {category}
                 </Text>
               </TouchableOpacity>

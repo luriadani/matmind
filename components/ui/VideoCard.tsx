@@ -99,17 +99,33 @@ export function VideoCard({
   useEffect(() => {
     const platform = technique.source_platform?.toLowerCase() ?? '';
     const urlLower = technique.video_url?.toLowerCase() ?? '';
+    const isTikTok = platform === 'tiktok' || urlLower.includes('tiktok.com');
     const needsOg =
-      ['instagram', 'facebook', 'tiktok'].includes(platform) ||
+      isTikTok ||
+      ['instagram', 'facebook'].includes(platform) ||
       urlLower.includes('instagram.com') ||
-      urlLower.includes('facebook.com') ||
-      urlLower.includes('tiktok.com');
+      urlLower.includes('facebook.com');
     if (!needsOg || !technique.video_url) return;
 
     let cancelled = false;
     const fetchOg = async () => {
       setOgLoading(true);
       try {
+        // TikTok oEmbed supports CORS — call directly from client (avoids Vercel IP blocks)
+        if (isTikTok) {
+          const res = await fetch(
+            `https://www.tiktok.com/oembed?url=${encodeURIComponent(technique.video_url)}`
+          );
+          if (!cancelled && res.ok) {
+            const data = await res.json();
+            const thumb = data?.thumbnail_url;
+            if (thumb?.startsWith('http') && !cancelled) {
+              setOgImageUrl(thumb);
+              return;
+            }
+          }
+        }
+        // Instagram / Facebook — go via server proxy
         const res = await fetch(
           `${OG_IMAGE_API}?url=${encodeURIComponent(technique.video_url)}`
         );
