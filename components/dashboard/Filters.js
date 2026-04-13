@@ -3,7 +3,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from '../Localization';
 import { useColorScheme } from '../../hooks/useColorScheme';
-import { Brand, CategoryColors, Colors } from '../../constants/Colors';
+import { Brand, getCategoryColor, Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { BorderRadius, Spacing } from '../../constants/Spacing';
 
@@ -89,7 +89,7 @@ const Filters = ({ filters, onFilterChange }) => {
 
           {availableCategories.map(category => {
             const active = filters.categories.includes(category);
-            const catColor = CategoryColors[category] ?? CategoryColors.default;
+            const catColor = getCategoryColor(category);
             return (
               <TouchableOpacity
                 key={category}

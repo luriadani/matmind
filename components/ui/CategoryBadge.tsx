@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { CategoryColors } from '../../constants/Colors';
+import { getCategoryColor } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { BorderRadius, Spacing } from '../../constants/Spacing';
 
@@ -10,10 +10,6 @@ type CategoryBadgeProps = {
   compact?: boolean;
   style?: ViewStyle;
 };
-
-function getCategoryColor(category: string) {
-  return CategoryColors[category as keyof typeof CategoryColors] ?? CategoryColors.default;
-}
 
 export function CategoryBadge({
   category,

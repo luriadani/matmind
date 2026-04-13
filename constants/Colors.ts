@@ -98,8 +98,8 @@ export const Colors = { light, dark };
 export type ColorScheme = typeof light;
 
 // ─── Category Colors ─────────────────────────────────────────────────────────
-// Used for technique category badges
-export const CategoryColors = {
+// Fixed colors for built-in categories
+export const CategoryColors: Record<string, { background: string; text: string; border: string }> = {
   'Try Next Class': {
     background: 'rgba(91,108,245,0.15)',
     text: '#7C8BFF',
@@ -115,12 +115,34 @@ export const CategoryColors = {
     text: '#FFB020',
     border: 'rgba(255,176,32,0.3)',
   },
-  default: {
-    background: 'rgba(142,142,168,0.15)',
-    text: '#8E8EA8',
-    border: 'rgba(142,142,168,0.3)',
-  },
-} as const;
+};
+
+// Palette for custom categories — deterministic by index (hash of name)
+const CUSTOM_PALETTE = [
+  { background: 'rgba(168,85,247,0.15)',  text: '#A855F7', border: 'rgba(168,85,247,0.3)'  }, // purple
+  { background: 'rgba(236,72,153,0.15)',  text: '#EC4899', border: 'rgba(236,72,153,0.3)'  }, // pink
+  { background: 'rgba(249,115,22,0.15)',  text: '#F97316', border: 'rgba(249,115,22,0.3)'  }, // orange
+  { background: 'rgba(20,184,166,0.15)',  text: '#14B8A6', border: 'rgba(20,184,166,0.3)'  }, // teal
+  { background: 'rgba(239,68,68,0.15)',   text: '#EF4444', border: 'rgba(239,68,68,0.3)'   }, // red
+  { background: 'rgba(6,182,212,0.15)',   text: '#06B6D4', border: 'rgba(6,182,212,0.3)'   }, // cyan
+  { background: 'rgba(132,204,22,0.15)',  text: '#84CC16', border: 'rgba(132,204,22,0.3)'  }, // lime
+  { background: 'rgba(244,63,94,0.15)',   text: '#F43F5E', border: 'rgba(244,63,94,0.3)'   }, // rose
+  { background: 'rgba(234,179,8,0.15)',   text: '#EAB308', border: 'rgba(234,179,8,0.3)'   }, // yellow
+  { background: 'rgba(59,130,246,0.15)',  text: '#3B82F6', border: 'rgba(59,130,246,0.3)'  }, // blue
+];
+
+// Simple djb2 hash — same string always → same number
+const hashString = (str: string): number => {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = (h * 33) ^ str.charCodeAt(i);
+  return Math.abs(h);
+};
+
+// Exported helper — use everywhere instead of CategoryColors[cat] ?? default
+export const getCategoryColor = (category: string) => {
+  if (CategoryColors[category]) return CategoryColors[category];
+  return CUSTOM_PALETTE[hashString(category) % CUSTOM_PALETTE.length];
+};
 
 // ─── Media / Video ───────────────────────────────────────────────────────────
 // Values that apply regardless of color scheme (e.g., video UI always dark)
